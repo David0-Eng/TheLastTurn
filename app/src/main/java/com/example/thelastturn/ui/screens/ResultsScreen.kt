@@ -1,44 +1,40 @@
 package com.example.thelastturn.ui.screens
 
+import android.app.Activity
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 
 @Composable
-fun ResultScreen(
-    navController: NavController,
-    winner: String,
-    onSendEmail: () -> Unit
-) {
-    Surface(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(24.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text("Resultado", style = MaterialTheme.typography.headlineMedium)
+fun ResultsScreen(result: String) {
+    val context = LocalContext.current
 
-            Spacer(modifier = Modifier.height(16.dp))
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = when(result) {
+                "VICTORY" -> "¡Victoria!"
+                "DEFEAT" -> "Derrota"
+                else -> "Empate"
+            },
+            style = MaterialTheme.typography.headlineLarge
+        )
 
-            Text("Ganador: $winner")
+        Spacer(modifier = Modifier.height(24.dp))
 
-            Spacer(modifier = Modifier.height(32.dp))
-
-            Button(onClick = onSendEmail) {
-                Text("Enviar resultado por Email")
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Button(onClick = {
-                navController.popBackStack("home", inclusive = false)
-            }) {
-                Text("Volver al Inicio")
-            }
+        Button(onClick = {
+            // Lógica para reiniciar o salir
+            (context as Activity).finish()
+        }) {
+            Text("Volver al inicio")
         }
     }
 }
