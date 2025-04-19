@@ -14,15 +14,16 @@ fun HomeScreen(navController: NavController) {
         Column(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxSize().padding(24.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp)
         ) {
-            Text("The Last Turn", style = MaterialTheme.typography.headlineMedium)
-
+            Text(
+                text = "The Last Turn",
+                style = MaterialTheme.typography.headlineMedium
+            )
             Spacer(modifier = Modifier.height(32.dp))
-
-            Button(onClick = {
-                navController.navigate("game")
-            }) {
+            Button(onClick = { navController.navigate("game") }) {
                 Text("Empezar Partida")
             }
         }

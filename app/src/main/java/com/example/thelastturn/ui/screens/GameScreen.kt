@@ -1,150 +1,236 @@
 package com.example.thelastturn.ui.screens
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-
-
 import com.example.thelastturn.R
+import com.example.thelastturn.model.BoardSlot
 import com.example.thelastturn.model.Card
-import com.example.thelastturn.model.Player
 import com.example.thelastturn.viewmodel.GameViewModel
-import com.example.thelastturn.viewmodel.PlayerTurn
-import com.example.thelastturn.viewmodel.GameState
-import kotlinx.coroutines.delay
 
 @Composable
-fun GameScreen(
-    navController: NavController,
-    viewModel: GameViewModel = viewModel(),
-    onGameOver: () -> Unit = {}
-) {
-    val currentPlayer by viewModel.currentPlayer.collectAsState()
-    val opponent by viewModel.opponent.collectAsState()
-    val currentTurn by viewModel.currentTurn.collectAsState()
-    val gameState by viewModel.gameState.collectAsState()
-
-    LaunchedEffect(gameState) {
-        if (gameState != GameState.ONGOING) {
-            delay(2000)
-            navController.navigate("results/${gameState.name}")
-        }
-    }
+fun GameScreen(navController: NavController) {
+    val viewModel: GameViewModel = viewModel()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
+        verticalArrangement = Arrangement.SpaceBetween
+    ) {
+        // Tablero enemigo
+        BoardSection(
+            slots = viewModel.enemySlots,
+            isPlayer = false,
+            viewModel = viewModel,
+            availableCards = viewModel.enemyHand
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Tablero jugador
+        BoardSection(
+            slots = viewModel.playerSlots,
+            isPlayer = true,
+            viewModel = viewModel,
+            availableCards = viewModel.playerHand
+        )
+
+        // Baraja del jugador
+        PlayerHand(
+            cards = viewModel.playerHand,
+            selectedCard = viewModel.selectedCard.value,
+            onCardSelected = { viewModel.selectCard(it) },
+            onCardDeselected = { viewModel.resetSelection() }
+        )
+    }
+}
+
+@Composable
+private fun BoardSection(
+    slots: List<BoardSlot>,
+    isPlayer: Boolean,
+    viewModel: GameViewModel,
+    availableCards: List<Card>
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceEvenly
+    ) {
+        slots.forEach { slot ->
+            BoardSlotUI(
+                slot = slot,
+                isPlayer = isPlayer,
+                viewModel = viewModel,
+                availableCards = availableCards
+            )
+        }
+    }
+}
+
+@Composable
+private fun BoardSlotUI(
+    slot: BoardSlot,
+    isPlayer: Boolean,
+    viewModel: GameViewModel,
+    availableCards: List<Card>
+) {
+    val cardInSlot = slot.card // Obtener la Card directamente del slot
+    val slotColor = if (isPlayer) Color(0xFF2196F3) else Color(0xFFF44336)
+
+    Box(
+        modifier = Modifier
+            .width(80.dp)
+            .height(120.dp)
+            .border(
+                width = 2.dp,
+                color = slotColor,
+                shape = RoundedCornerShape(8.dp)
+            )
+            .clickable(enabled = isPlayer) {
+                if (viewModel.selectedCard.value != null) {
+                    viewModel.placeCard(slot.id)
+                }
+            }
+            .background(
+                color = slotColor.copy(alpha = 0.1f),
+                shape = RoundedCornerShape(8.dp)
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        if (cardInSlot != null) {
+            CardInSlot(card = cardInSlot)
+        } else {
+            SlotPlaceholder(slotId = slot.id, color = slotColor)
+        }
+    }
+}
+
+@Composable
+private fun CardInSlot(card: Card) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.SpaceBetween,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Indicador de turno
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(2f)
+                .padding(4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Image(
+                painter = painterResource(id = card.imageRes),
+                contentDescription = card.name,
+                modifier = Modifier.size(48.dp)
+            )
+            Text(
+                text = card.name,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1
+            )
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.Black.copy(alpha = 0.2f))
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.SpaceAround
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("⚔", style = MaterialTheme.typography.bodySmall)
+                Text(
+                    text = "${card.damage}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Red
+                )
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("❤", style = MaterialTheme.typography.bodySmall)
+                Text(
+                    text = "${card.health}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Green
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SlotPlaceholder(slotId: Int, color: Color) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.fillMaxSize()
+    ) {
         Text(
-            text = when (currentTurn) {
-                PlayerTurn.PLAYER -> "Tu turno"
-                PlayerTurn.OPPONENT -> "Turno del enemigo"
-            },
-            style = MaterialTheme.typography.titleLarge,
-            color = when (currentTurn) {
-                PlayerTurn.PLAYER -> MaterialTheme.colorScheme.primary
-                else -> MaterialTheme.colorScheme.secondary
-            }
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Vidas de los jugadores
-        PlayerHealthDisplay(player = currentPlayer)
-        Spacer(modifier = Modifier.height(24.dp))
-        PlayerHealthDisplay(player = opponent)
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Campo de batalla
-        BattleField(
-            playerCards = currentPlayer.deck,
-            opponentCards = opponent.deck,
-            onCardClicked = { card ->
-                if (currentTurn == PlayerTurn.PLAYER) viewModel.attack(card)
-            }
+            text = "SLOT $slotId",
+            color = color.copy(alpha = 0.5f),
+            style = MaterialTheme.typography.labelSmall
         )
     }
 }
 
 @Composable
-private fun PlayerHealthDisplay(player: Player) {
-    Text(
-        text = "${player.name}: ❤️ ${player.health}",
-        style = MaterialTheme.typography.titleMedium,
-        color = if (player.health <= 5) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground
-    )
-}
-
-@Composable
-private fun BattleField(
-    playerCards: List<Card>,
-    opponentCards: List<Card>,
-    onCardClicked: (Card) -> Unit
-) {
-    Column {
-        // Zona del oponente
-        CardZone(cards = opponentCards, isOpponent = true)
-        Spacer(modifier = Modifier.height(32.dp))
-        // Zona del jugador
-        CardZone(cards = playerCards, isOpponent = false, onCardClicked = onCardClicked)
-    }
-}
-
-@Composable
-private fun CardZone(
+private fun PlayerHand(
     cards: List<Card>,
-    isOpponent: Boolean = false,
-    onCardClicked: (Card) -> Unit = {}
+    selectedCard: Card?,
+    onCardSelected: (Card) -> Unit,
+    onCardDeselected: () -> Unit
 ) {
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(140.dp)
     ) {
-        items(cards) { card ->  // 'items' en minúscula
-            Card(
-                modifier = Modifier
-                    .size(120.dp)
-                    .clickable(enabled = !isOpponent) { onCardClicked(card) },
-                shape = MaterialTheme.shapes.medium,
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.padding(8.dp)
-                ) {
-                    Image(
-                        painter = painterResource(id = card.imageRes),  // Asegúrate de tener imágenes en res/drawable
-                        contentDescription = card.name,
-                        modifier = Modifier.size(64.dp)
-                    )
-                    Text(
-                        text = card.name,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Text(
-                        text = "ATK: ${card.damage}",
-                        color = MaterialTheme.colorScheme.error
-                    )
-                    Text(
-                        text = "HP: ${card.health}",
-                        color = MaterialTheme.colorScheme.tertiary
-                    )
+        items(cards) { card ->
+            CardUI(
+                card = card,
+                isSelected = card.id == selectedCard?.id,
+                onClick = {
+                    if (selectedCard?.id == card.id) onCardDeselected()
+                    else onCardSelected(card)
                 }
-            }
+            )
         }
+    }
+}
+
+@Composable
+private fun CardUI(
+    card: Card,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .width(80.dp)
+            .height(120.dp)
+            .border(
+                width = 2.dp,
+                color = if (isSelected) Color.Green else Color.Gray,
+                shape = RoundedCornerShape(8.dp)
+            )
+            .clickable(onClick = onClick)
+            .background(Color.White, RoundedCornerShape(8.dp))
+    ) {
+        CardInSlot(card = card)
     }
 }

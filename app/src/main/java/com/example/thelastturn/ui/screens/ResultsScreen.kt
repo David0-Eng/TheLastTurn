@@ -20,20 +20,15 @@ fun ResultsScreen(result: String) {
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = when(result) {
+            text = when (result) {
                 "VICTORY" -> "¡Victoria!"
                 "DEFEAT" -> "Derrota"
                 else -> "Empate"
             },
             style = MaterialTheme.typography.headlineLarge
         )
-
         Spacer(modifier = Modifier.height(24.dp))
-
-        Button(onClick = {
-            // Lógica para reiniciar o salir
-            (context as Activity).finish()
-        }) {
+        Button(onClick = { (context as Activity).finish() }) {
             Text("Volver al inicio")
         }
     }

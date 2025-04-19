@@ -1,82 +1,55 @@
 package com.example.thelastturn.viewmodel
 
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
+import com.example.thelastturn.R
+import com.example.thelastturn.model.BoardSlot
 import com.example.thelastturn.model.Card
-import com.example.thelastturn.model.Player
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
+import com.example.thelastturn.model.GameState
 
 class GameViewModel : ViewModel() {
+    val gameState = mutableStateOf(GameState.ONGOING)
+    val playerHand = mutableStateListOf<Card>()
+    val enemyHand = mutableStateListOf<Card>()
 
-    private val _currentPlayer = MutableStateFlow(Player("Jugador", 20, Card.sampleCards()))
-    private val _opponent = MutableStateFlow(Player("Enemigo", 20, Card.sampleCards()))
-    private val _currentTurn = MutableStateFlow(PlayerTurn.PLAYER)
-    private val _gameState = MutableStateFlow(GameState.ONGOING)
+    val playerSlots = mutableStateListOf(
+        BoardSlot(1), BoardSlot(2), BoardSlot(3), BoardSlot(4)
+    )
 
-    val currentPlayer: StateFlow<Player> = _currentPlayer
-    val opponent: StateFlow<Player> = _opponent
-    val currentTurn: StateFlow<PlayerTurn> = _currentTurn
-    val gameState: StateFlow<GameState> = _gameState
+    val enemySlots = mutableStateListOf(
+        BoardSlot(5), BoardSlot(6), BoardSlot(7), BoardSlot(8)
+    )
 
-    fun attack(attacker: Card) {
-        if (_gameState.value != GameState.ONGOING) return
-        if (_currentTurn.value != PlayerTurn.PLAYER) return
+    val selectedCard = mutableStateOf<Card?>(null)
 
-        viewModelScope.launch {
-            // Buscar carta rival en la misma posición
-            val opponentCard = _opponent.value.deck.find { it.id == attacker.id }
+    init {
+        val initialDeck = Card.sampleDeck()
+        playerHand.addAll(initialDeck.take(4))
+        enemyHand.addAll(listOf(
+            Card(5, "Enemigo", 2, 6, R.drawable.default_card),
+            Card(6, "Esqueleto", 3, 4, R.drawable.default_card)
+        ))
+    }
 
-            if (opponentCard != null) {
-                opponentCard.health -= attacker.damage
-                if (opponentCard.health <= 0) {
-                    _opponent.value = _opponent.value.copy(
-                        deck = _opponent.value.deck.filter { it.id != opponentCard.id }
-                    )
-                }
-            } else {
-                _opponent.value = _opponent.value.copy(
-                    health = _opponent.value.health - attacker.damage
-                )
+    fun selectCard(card: Card) {
+        selectedCard.value = card
+    }
+
+    fun resetSelection() {
+        selectedCard.value = null
+    }
+
+    fun placeCard(slotId: Int) {
+        val card = selectedCard.value ?: return
+        val targetSlot = playerSlots.firstOrNull { it.id == slotId }
+
+        targetSlot?.let { slot ->
+            if (slot.card == null) {
+                slot.card = card // Asignar la Card al slot
+                playerHand.remove(card)
+                resetSelection()
             }
-
-            checkGameOver()
-            if (_gameState.value == GameState.ONGOING) {
-                switchTurn()
-                opponentTurn()
-            }
         }
-    }
-
-    private fun checkGameOver() {
-        when {
-            _opponent.value.health <= 0 -> _gameState.value = GameState.VICTORY
-            _currentPlayer.value.health <= 0 -> _gameState.value = GameState.DEFEAT
-            _currentPlayer.value.deck.isEmpty() && _opponent.value.deck.isEmpty() ->
-                _gameState.value = GameState.DRAW
-        }
-    }
-
-    private fun switchTurn() {
-        _currentTurn.value = when (_currentTurn.value) {
-            PlayerTurn.PLAYER -> PlayerTurn.OPPONENT
-            PlayerTurn.OPPONENT -> PlayerTurn.PLAYER
-        }
-    }
-
-    private suspend fun opponentTurn() {
-        delay(1000) // Simula tiempo de espera del oponente
-        // Lógica simple de IA (ataque aleatorio)
-        val availableCards = _opponent.value.deck.filter { it.health > 0 }
-        if (availableCards.isNotEmpty()) {
-            val randomCard = availableCards.random()
-            // Aquí implementar lógica de contraataque
-        }
-        switchTurn()
     }
 }
-
-enum class PlayerTurn { PLAYER, OPPONENT }
-enum class GameState { ONGOING, VICTORY, DEFEAT, DRAW }

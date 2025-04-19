@@ -5,6 +5,4 @@ data class Game(
     var opponent: Player,
     var turnCount: Int = 0,
     var gameState: GameState = GameState.ONGOING
-) {
-    enum class GameState { ONGOING, VICTORY, DEFEAT, DRAW }
-}
+)

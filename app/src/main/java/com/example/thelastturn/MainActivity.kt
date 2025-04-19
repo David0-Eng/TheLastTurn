@@ -11,12 +11,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.thelastturn.ui.screens.GameScreen
+import com.example.thelastturn.ui.screens.HomeScreen
 import com.example.thelastturn.ui.theme.TheLastTurnTheme
 import androidx.compose.ui.Modifier
-import androidx.navigation.NavType
-import androidx.navigation.navArgument
-import com.example.thelastturn.ui.screens.ResultsScreen
-
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -39,16 +36,9 @@ private fun Navigation() {
     val navController = rememberNavController()
     NavHost(
         navController = navController,
-        startDestination = "game"
+        startDestination = "home"
     ) {
-        composable("game") {
-            GameScreen(navController = navController) // Pasa el navController
-        }
-        composable(
-            route = "results/{result}",
-            arguments = listOf(navArgument("result") { type = NavType.StringType })
-        ) { backStackEntry ->
-            ResultsScreen(result = backStackEntry.arguments?.getString("result") ?: "UNKNOWN")
-        }
+        composable("home") { HomeScreen(navController) }
+        composable("game") { GameScreen(navController) }
     }
 }
