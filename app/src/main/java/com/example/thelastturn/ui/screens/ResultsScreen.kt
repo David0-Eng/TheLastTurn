@@ -11,7 +11,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 
 @Composable
-fun ResultsScreen(result: String) {
+fun ResultsScreen(result: String, onRestart: () -> Unit) {
     val context = LocalContext.current
 
     Column(

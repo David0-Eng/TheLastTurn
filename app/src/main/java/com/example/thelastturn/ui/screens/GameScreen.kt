@@ -23,8 +23,15 @@ import com.example.thelastturn.model.Card
 import com.example.thelastturn.viewmodel.GameViewModel
 
 @Composable
-fun GameScreen(navController: NavController) {
+fun GameScreen(onGameEnd: (String) -> Unit) {
     val viewModel: GameViewModel = viewModel()
+
+    LaunchedEffect(viewModel.navigationEvent.value) {
+        viewModel.navigationEvent.value?.let { result ->
+            onGameEnd(result)
+            viewModel.resetNavigation()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -32,6 +39,9 @@ fun GameScreen(navController: NavController) {
             .padding(16.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
+
+        EnemyInfo(viewModel)
+
         // Tablero enemigo
         BoardSection(
             slots = viewModel.enemySlots,
@@ -50,13 +60,40 @@ fun GameScreen(navController: NavController) {
             availableCards = viewModel.playerHand
         )
 
+        PlayerInfo(viewModel)
+
         // Baraja del jugador
         PlayerHand(
             cards = viewModel.playerHand,
             selectedCard = viewModel.selectedCard.value,
-            onCardSelected = { viewModel.selectCard(it) },
-            onCardDeselected = { viewModel.resetSelection() }
+            onCardSelected = { viewModel.selectCard(it) }
         )
+    }
+}
+
+@Composable
+private fun PlayerInfo(viewModel: GameViewModel) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text("Jugador: ${viewModel.player.value.health} ❤")
+        Text("Turno: ${viewModel.currentTurn.value.name}")
+    }
+}
+
+@Composable
+private fun EnemyInfo(viewModel: GameViewModel) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text("Enemigo: ${viewModel.enemy.value.health} ❤")
+        Text("Cartas: ${viewModel.enemyHand.size}")
     }
 }
 
@@ -191,8 +228,7 @@ private fun SlotPlaceholder(slotId: Int, color: Color) {
 private fun PlayerHand(
     cards: List<Card>,
     selectedCard: Card?,
-    onCardSelected: (Card) -> Unit,
-    onCardDeselected: () -> Unit
+    onCardSelected: (Card) -> Unit
 ) {
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -204,10 +240,7 @@ private fun PlayerHand(
             CardUI(
                 card = card,
                 isSelected = card.id == selectedCard?.id,
-                onClick = {
-                    if (selectedCard?.id == card.id) onCardDeselected()
-                    else onCardSelected(card)
-                }
+                onClick = { onCardSelected(card) }
             )
         }
     }

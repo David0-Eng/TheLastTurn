@@ -9,7 +9,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 
 @Composable
-fun HomeScreen(navController: NavController) {
+fun HomeScreen(onStartGame: () -> Unit) {
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(
             verticalArrangement = Arrangement.Center,
@@ -23,7 +23,7 @@ fun HomeScreen(navController: NavController) {
                 style = MaterialTheme.typography.headlineMedium
             )
             Spacer(modifier = Modifier.height(32.dp))
-            Button(onClick = { navController.navigate("game") }) {
+            Button(onClick = { onStartGame() }) {
                 Text("Empezar Partida")
             }
         }
