@@ -80,7 +80,7 @@ private fun PlayerInfo(viewModel: GameViewModel) {
             .padding(8.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text("Jugador: ${viewModel.player.value.health} ❤")
+        Text("Jugador: ${viewModel.player.currentHits} ❤")
         Text("Turno: ${viewModel.currentTurn.value.name}")
     }
 }
@@ -93,7 +93,7 @@ private fun EnemyInfo(viewModel: GameViewModel) {
             .padding(8.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text("Enemigo: ${viewModel.enemy.value.health} ❤")
+        Text("Enemigo: ${viewModel.enemy.currentHits} ❤")
         Text("Cartas: ${viewModel.enemyHand.size}")
     }
 }

@@ -11,9 +11,11 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 
 @Composable
-fun ResultsScreen(result: String, onRestart: () -> Unit) {
-    val context = LocalContext.current
-
+fun ResultsScreen(
+    result: String,
+    navController: NavController,
+    onRestart: () -> Unit
+) {
     Column(
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -28,7 +30,12 @@ fun ResultsScreen(result: String, onRestart: () -> Unit) {
             style = MaterialTheme.typography.headlineLarge
         )
         Spacer(modifier = Modifier.height(24.dp))
-        Button(onClick = { (context as Activity).finish() }) {
+        Button(onClick = {
+            onRestart() // reinicia el estado del juego, si aplica
+            navController.navigate("home") {
+                popUpTo("game") { inclusive = true } // limpia el backstack hasta la pantalla de juego
+            }
+        }) {
             Text("Volver al inicio")
         }
     }

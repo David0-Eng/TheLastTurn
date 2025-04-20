@@ -11,7 +11,7 @@ data class Card(
     @DrawableRes val imageRes: Int
 ) {
     companion object {
-        fun sampleDeck(): MutableList<Card> = mutableListOf( // Cambiar a MutableList
+        fun sampleDeck(): MutableList<Card> = mutableListOf(
             Card(1, "Guerrero", 3, 5, R.drawable.warrior),
             Card(2, "Mago", 5, 3, R.drawable.mage),
             Card(3, "Arquero", 4, 4, R.drawable.default_card),

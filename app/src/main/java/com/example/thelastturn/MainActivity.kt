@@ -63,6 +63,7 @@ private fun Navigation() {
                     "DRAW" -> GameState.DRAW
                     else -> GameState.ONGOING
                 }.toString(),
+                navController = navController,
                 onRestart = {
                     navController.popBackStack("home", inclusive = false)
                 }
