@@ -24,8 +24,8 @@ class GameViewModel : ViewModel() {
     val currentTurn get() = _currentTurn
 
     // Slots y manos
-    val playerSlots = List(4) { BoardSlot(it + 1) }
-    val enemySlots = List(4) { BoardSlot(it + 5) }
+    val playerSlots = mutableStateListOf<BoardSlot>()
+    val enemySlots = mutableStateListOf<BoardSlot>()
 
     private val _playerHand = mutableStateListOf<Card>()
     val playerHand get() = _playerHand
@@ -41,9 +41,14 @@ class GameViewModel : ViewModel() {
     val navigationEvent get() = _navigationEvent
 
     init {
-        val initialDeck = Card.sampleDeck().toMutableList() // Convertir a MutableList
+        val initialDeck = Card.sampleDeck().toMutableList()
         _player.value = _player.value.copy(deck = initialDeck)
         _enemy.value = _enemy.value.copy(deck = initialDeck.shuffled().toMutableList())
+
+        // Inicializar los slots observables
+        repeat(4) { playerSlots.add(BoardSlot(it + 1)) }
+        repeat(4) { enemySlots.add(BoardSlot(it + 5)) }
+
         drawInitialCards()
     }
 
@@ -66,42 +71,34 @@ class GameViewModel : ViewModel() {
         val card = _selectedCard.value ?: return
         val slot = playerSlots.firstOrNull { it.id == slotId } ?: return
 
-        if (slot.card == null && _currentTurn.value == PlayerTurn.PLAYER) {
-            slot.card = card
+        if (slot.isEmpty && _currentTurn.value == PlayerTurn.PLAYER) {
+            slot.placeCard(card) // Usar método en lugar de asignación directa
             _playerHand.remove(card)
             _selectedCard.value = null
-            checkTurnCompletion()
-        }
-    }
-
-    private fun checkTurnCompletion() {
-        when (_currentTurn.value) {
-            PlayerTurn.PLAYER -> {
-                if (playerSlots.all { it.card != null }) {
-                    _currentTurn.value = PlayerTurn.OPPONENT
-                    placeEnemyCards()
-                }
-            }
-            PlayerTurn.OPPONENT -> {
-                if (enemySlots.all { it.card != null }) {
-                    _currentTurn.value = PlayerTurn.COMBAT
-                    resolveCombat()
-                }
-            }
-            else -> {}
+            _currentTurn.value = PlayerTurn.OPPONENT
+            placeEnemyCards()
         }
     }
 
     private fun placeEnemyCards() {
-        val availableCards = _enemyHand.toList()
-        enemySlots.forEach { slot ->
-            if (slot.isEmpty && availableCards.isNotEmpty()) {
-                val card = availableCards.random()
-                slot.card = card
-                _enemyHand.remove(card)
-            }
+        val availableCards = _enemyHand.toMutableList()
+        // Buscar el primer slot vacío disponible
+        val emptySlot = enemySlots.firstOrNull { it.isEmpty }
+        if (emptySlot != null && availableCards.isNotEmpty()) {
+            val card = availableCards.random()
+            emptySlot.placeCard(card)
+            _enemyHand.remove(card)
+            availableCards.remove(card)
+            println("Enemigo colocó: ${card.name}")
+            logState()
+            // Cambiar al turno de combate después de cada colocación
+            _currentTurn.value = PlayerTurn.COMBAT
+            resolveCombat()
+        } else {
+            // Si no hay slots o cartas, pasar directamente al combate
+            _currentTurn.value = PlayerTurn.COMBAT
+            resolveCombat()
         }
-        checkTurnCompletion()
     }
 
     private fun resolveCombat() {
@@ -113,8 +110,8 @@ class GameViewModel : ViewModel() {
                     playerCard.health -= enemyCard.damage
                     enemyCard.health -= playerCard.damage
 
-                    if (playerCard.health <= 0) playerSlot.card = null
-                    if (enemyCard.health <= 0) enemySlot.card = null
+                    if (playerCard.health <= 0) playerSlot.clear()
+                    if (enemyCard.health <= 0) enemySlot.clear()
                 } ?: run {
                     // Daño directo al enemigo
                     _enemy.value = _enemy.value.copy(health = _enemy.value.health - playerCard.damage)
@@ -151,9 +148,7 @@ class GameViewModel : ViewModel() {
     }
 
     private fun prepareNextTurn() {
-        // Limpiar slots y robar cartas
-        playerSlots.forEach { it.card = null }
-        enemySlots.forEach { it.card = null }
+
 
         repeat(2) {
             drawCard(_player.value.deck)?.let { _playerHand.add(it) }
@@ -169,5 +164,11 @@ class GameViewModel : ViewModel() {
 
     fun resetNavigation() {
         _navigationEvent.value = null
+    }
+
+    private fun logState() {
+        println("Turno actual: ${_currentTurn.value}")
+        println("Mano enemiga: ${_enemyHand.size} cartas")
+        println("Slots enemigos: ${enemySlots.map { it.card?.name }}")
     }
 }

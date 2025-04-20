@@ -21,6 +21,7 @@ import com.example.thelastturn.R
 import com.example.thelastturn.model.BoardSlot
 import com.example.thelastturn.model.Card
 import com.example.thelastturn.viewmodel.GameViewModel
+import com.example.thelastturn.model.PlayerTurn
 
 @Composable
 fun GameScreen(onGameEnd: (String) -> Unit) {
@@ -104,11 +105,11 @@ private fun BoardSection(
     viewModel: GameViewModel,
     availableCards: List<Card>
 ) {
-    Row(
+    LazyRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
-        slots.forEach { slot ->
+        items(slots) { slot ->
             BoardSlotUI(
                 slot = slot,
                 isPlayer = isPlayer,
@@ -126,7 +127,8 @@ private fun BoardSlotUI(
     viewModel: GameViewModel,
     availableCards: List<Card>
 ) {
-    val cardInSlot = slot.card // Obtener la Card directamente del slot
+    val cardInSlot = slot.card
+    println("Recomponiendo slot ${slot.id} con carta: ${cardInSlot?.name}")
     val slotColor = if (isPlayer) Color(0xFF2196F3) else Color(0xFFF44336)
 
     Box(
@@ -138,7 +140,7 @@ private fun BoardSlotUI(
                 color = slotColor,
                 shape = RoundedCornerShape(8.dp)
             )
-            .clickable(enabled = isPlayer) {
+            .clickable(enabled = isPlayer && viewModel.currentTurn.value == PlayerTurn.PLAYER) {
                 if (viewModel.selectedCard.value != null) {
                     viewModel.placeCard(slot.id)
                 }
