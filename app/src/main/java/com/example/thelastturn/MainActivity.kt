@@ -17,8 +17,11 @@ import androidx.compose.ui.Modifier
 import com.example.thelastturn.model.GameState
 import com.example.thelastturn.ui.screens.ResultsScreen
 
+
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+
         super.onCreate(savedInstanceState)
         setContent {
             TheLastTurnTheme {

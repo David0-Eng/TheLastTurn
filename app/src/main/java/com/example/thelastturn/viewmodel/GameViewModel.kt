@@ -58,9 +58,6 @@ class GameViewModel : ViewModel() {
         _currentTurn.value = PlayerTurn.PLAYER
     }
 
-    fun resetSelection() {
-        _selectedCard.value = null
-    }
 
     private fun drawInitialCards() {
         repeat(3) {
