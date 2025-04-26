@@ -1,6 +1,7 @@
 package com.example.thelastturn.ui.screens
 
 import android.content.res.Configuration
+import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
@@ -25,6 +26,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.thelastturn.R
 import com.example.thelastturn.model.BoardSlot
@@ -40,7 +42,7 @@ fun isLandscape(): Boolean {
 
 @Composable
 fun GameScreen(onGameEnd: (String) -> Unit) {
-    val viewModel: GameViewModel = viewModel()
+    val viewModel: GameViewModel = viewModel(viewModelStoreOwner = LocalActivity.current as ViewModelStoreOwner)
 
     LaunchedEffect(viewModel.navigationEvent.value) {
         viewModel.navigationEvent.value?.let { result ->
@@ -49,7 +51,9 @@ fun GameScreen(onGameEnd: (String) -> Unit) {
         }
     }
 
+
     val landscape = isLandscape()
+
 
     Box(
         modifier = Modifier
@@ -64,6 +68,15 @@ fun GameScreen(onGameEnd: (String) -> Unit) {
                     .fillMaxSize()
                     .padding(8.dp)
             ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    TimerDisplay(viewModel)
+                }
+
                 Row(
                     modifier = Modifier
                         .weight(1f)
@@ -128,6 +141,15 @@ fun GameScreen(onGameEnd: (String) -> Unit) {
                     .matchParentSize(),
                 verticalArrangement = Arrangement.SpaceEvenly
             ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    TimerDisplay(viewModel)
+                }
+
                 EnemyInfo(viewModel)
                 BoardSection(
                     slots = viewModel.enemySlots,
@@ -160,7 +182,7 @@ private fun PlayerInfo(viewModel: GameViewModel) {
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Jugador:", style = MaterialTheme.typography.bodyLarge)
+            Text(viewModel.player.name, style = MaterialTheme.typography.bodyLarge)
             Spacer(modifier = Modifier.width(8.dp))
             HealthIcons(viewModel.player.currentHits)
         }
@@ -383,5 +405,44 @@ private fun CardUI(
             .background(Color.White, RoundedCornerShape(12.dp))
     ) {
         CardInSlot(card = card)
+    }
+}
+
+@Composable
+private fun TimerDisplay(viewModel: GameViewModel) {
+    Card(
+        modifier = Modifier
+            .padding(4.dp)
+            .background(Color.Transparent),
+        colors = CardDefaults.cardColors(containerColor = Color(0xAAFFFFFF).copy(alpha = 0.9f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "Tiempo total",
+                    style = MaterialTheme.typography.labelSmall
+                )
+                Text(
+                    text = "${viewModel.remainingTotalTime}s",
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+
+            Spacer(modifier = Modifier.width(24.dp))
+
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "Tiempo por acción",
+                    style = MaterialTheme.typography.labelSmall
+                )
+                Text(
+                    text = "${viewModel.remainingActionTime}s",
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+        }
     }
 }

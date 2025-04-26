@@ -18,7 +18,12 @@ data class Card(
             Card(3, "Arquero", 4, 4, R.drawable.default_card, 4),
             Card(4, "Golem", 2, 8, R.drawable.default_card, 8),
             Card(5,"Tralalero", 3, 6, R.drawable.default_card, 6),
-            Card(6,"Bombardilo", 4, 4, R.drawable.default_card, 4)
+            Card(6,"Bombardilo", 4, 4, R.drawable.default_card, 4),
+
+            Card(7, "Curandero", 1, 6, R.drawable.default_card,  6),
+            Card(8, "Asesino",   6, 2, R.drawable.default_card,  2),
+            Card(9, "Caballero", 4, 6, R.drawable.default_card,  6),
+            Card(10,"Dragón",    7, 7, R.drawable.default_card,  7)
         )
     }
 }

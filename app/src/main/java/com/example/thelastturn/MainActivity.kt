@@ -2,26 +2,26 @@ package com.example.thelastturn
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.thelastturn.ui.screens.GameScreen
-import com.example.thelastturn.ui.screens.HomeScreen
-import com.example.thelastturn.ui.theme.TheLastTurnTheme
-import androidx.compose.ui.Modifier
-import com.example.thelastturn.model.GameState
-import com.example.thelastturn.ui.screens.ResultsScreen
 
+import com.example.thelastturn.ui.screens.*
+import com.example.thelastturn.ui.theme.TheLastTurnTheme
+import com.example.thelastturn.viewmodel.GameViewModel
 
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-
         super.onCreate(savedInstanceState)
         setContent {
             TheLastTurnTheme {
@@ -39,38 +39,50 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun Navigation() {
     val navController = rememberNavController()
-    NavHost(
-        navController = navController,
-        startDestination = "home"
-    ) {
+    val viewModel: GameViewModel = viewModel()
+
+    // Obtener el contexto de la actividad actual
+    val activity = LocalActivity.current as? ComponentActivity
+
+    NavHost(navController = navController, startDestination = "home") {
         composable("home") {
             HomeScreen(
-                onStartGame = {
-                    navController.navigate("game")
-                }
+                onStartGame = { navController.navigate("settings") },
+                onHelp = { navController.navigate("help") },
+                onExit = { activity?.finish() } // Usa el contexto de la actividad
             )
         }
+
+        composable("settings") {
+            SettingsScreen { playerName, numSlots, totalTime, actionTime ->
+                viewModel.startNewGame(numSlots, playerName, totalTime, actionTime)
+                // Si necesitas usar totalTime/actionTime dentro del VM, lo guardarías aquí
+                navController.navigate("game")
+            }
+        }
+
         composable("game") {
-            GameScreen(
-                onGameEnd = { result ->
-                    navController.navigate("results/$result")
-                }
-            )
+            GameScreen { result ->
+                navController.navigate("results/$result")
+            }
         }
-        composable("results/{result}") { backStackEntry ->
-            val result = backStackEntry.arguments?.getString("result")
+
+        composable("results/{result}") { backStack ->
+            val resultArg = backStack.arguments?.getString("result") ?: "DRAW"
+            val sizeText = "${viewModel.numberOfSlots}×${viewModel.numberOfSlots}"
             ResultsScreen(
-                result = when (result) {
-                    "VICTORY" -> GameState.VICTORY
-                    "DEFEAT" -> GameState.DEFEAT
-                    "DRAW" -> GameState.DRAW
-                    else -> GameState.ONGOING
-                }.toString(),
-                navController = navController,
+                playerName = viewModel.player.name,
+                result = resultArg,
+                boardSize = sizeText,
                 onRestart = {
                     navController.popBackStack("home", inclusive = false)
-                }
+                },
+                onExit = { activity?.finish() } // Usa el contexto de la actividad
             )
+        }
+
+        composable("help") {
+            HelpScreen(onBack = { navController.popBackStack() })
         }
     }
 }
