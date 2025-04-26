@@ -153,14 +153,41 @@ class GameViewModel : ViewModel() {
     }
 
     private fun checkGameState() {
+
+        val playerHits = _player.value.currentHits
+        val enemyHits = _enemy.value.currentHits
+
+        val playerHasCards = _player.value.deck.isNotEmpty() || _playerHand.isNotEmpty()
+        val enemyHasCards = _enemy.value.deck.isNotEmpty() || _enemyHand.isNotEmpty()
+
         when {
-            _player.value.currentHits <= 0 -> {
+            playerHits <= 0 && enemyHits <= 0 -> {
+                _gameState.value = GameState.DRAW
+                _navigationEvent.value = "DRAW"
+            }
+            playerHits <= 0 -> {
                 _gameState.value = GameState.DEFEAT
                 _navigationEvent.value = "DEFEAT"
             }
-            _enemy.value.currentHits <= 0 -> {
+            enemyHits <= 0 -> {
                 _gameState.value = GameState.VICTORY
                 _navigationEvent.value = "VICTORY"
+            }
+            !playerHasCards && !enemyHasCards -> {
+                when {
+                    playerHits > enemyHits -> {
+                        _gameState.value = GameState.VICTORY
+                        _navigationEvent.value = "VICTORY"
+                    }
+                    playerHits < enemyHits -> {
+                        _gameState.value = GameState.DEFEAT
+                        _navigationEvent.value = "DEFEAT"
+                    }
+                    else -> {
+                        _gameState.value = GameState.DRAW
+                        _navigationEvent.value = "DRAW"
+                    }
+                }
             }
         }
     }
