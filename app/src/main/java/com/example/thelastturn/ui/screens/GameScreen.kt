@@ -19,9 +19,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
@@ -269,7 +271,8 @@ private fun BoardSlotUI(
                     viewModel.placeCard(slot.id)
                 }
             }
-            .background(slotColor.copy(alpha = 0.1f), shape = RoundedCornerShape(8.dp)),
+            .background(slotColor.copy(alpha = 0.1f), shape = RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(8.dp)),
         contentAlignment = Alignment.Center
     ) {
         AnimatedVisibility(visible = cardInSlot != null) {
@@ -293,7 +296,10 @@ private fun CardInSlot(card: Card) {
         Image(
             painter = painterResource(id = card.imageRes),
             contentDescription = card.name,
-            modifier = Modifier.size(60.dp)
+            modifier = Modifier
+                .size(60.dp)
+                .aspectRatio(1f),
+            contentScale = ContentScale.Crop
         )
         Spacer(modifier = Modifier.height(4.5.dp))
         HealthBar(health = card.health, maxHealth = card.maxHealth)

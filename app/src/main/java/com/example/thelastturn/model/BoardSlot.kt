@@ -8,7 +8,8 @@ class BoardSlot(
     val id: Int,
     initialCard: Card? = null
 ) {
-    var card by mutableStateOf(initialCard) // <-- ¡Clave!
+    private val _card = mutableStateOf(initialCard)
+    var card: Card? by _card
         private set
 
     val isEmpty: Boolean
@@ -20,5 +21,9 @@ class BoardSlot(
 
     fun placeCard(newCard: Card) {
         card = newCard
+    }
+
+    fun updateCard(updatedCard: Card) {
+        card = updatedCard
     }
 }

@@ -14,16 +14,20 @@ import com.example.thelastturn.model.Card
 import com.example.thelastturn.model.GameState
 import com.example.thelastturn.model.Player
 import com.example.thelastturn.model.PlayerTurn
+import kotlinx.coroutines.Job                                     //Consultar si se puede usar
 
 class GameViewModel : ViewModel() {
 
     var numberOfSlots by mutableStateOf(0); private set
-    var remainingTotalTime by mutableStateOf(0)
-    var remainingActionTime by mutableStateOf(0)
-    private var isTimerRunning by mutableStateOf(false)
+    var remainingTotalTime by mutableStateOf(0)             //Variable para modificar el tiempo total
+    var remainingActionTime by mutableStateOf(0)            //Variable para modificar el tiempo de acción
+    private var isTimerRunning by mutableStateOf(false)     //Variable para controlar el inicio del temporizador
 
-    var totalTimeSeconds by mutableStateOf(0)
-    var actionTimeSeconds by mutableStateOf(0)
+    var totalTimeSeconds by mutableStateOf(0)               //Variable para recuperar el tiempo total
+    var actionTimeSeconds by mutableStateOf(0)              //Variable para recuperar el tiempo de acción
+
+    private var totalTimerJob: Job? = null                        //Consultar si se puede usar Job
+    private var actionTimerJob: Job? = null                       //Consultar si se puede usar Job
 
     // Estado de la partida
     private val _gameState = mutableStateOf(GameState.ONGOING)
@@ -66,6 +70,9 @@ class GameViewModel : ViewModel() {
         totalTime: Int,
         actionTime: Int
     ) {
+        stopTimers()
+
+
         numberOfSlots = numSlots
 
         totalTimeSeconds = totalTime
@@ -75,12 +82,12 @@ class GameViewModel : ViewModel() {
         remainingActionTime = actionTimeSeconds
 
 
-        startTimers()
-
         // 1) Reset estado básico
         _gameState.value = GameState.ONGOING
         _currentTurn.value = PlayerTurn.PLAYER
         _navigationEvent.value = null
+
+        startTimers()
 
         // 2) Prepara mazos fresh
         val baseDeck: List<Card> = Card.sampleDeck()
@@ -123,13 +130,13 @@ class GameViewModel : ViewModel() {
     }
 
     private fun startTimers() {
+        stopTimers()            //Parar jobs anteriores
         isTimerRunning = true
-        viewModelScope.launch {
+
+        totalTimerJob = viewModelScope.launch {
             while (isTimerRunning && remainingTotalTime > 0) {
                 delay(1000L)
                 remainingTotalTime--
-
-                // Lógica tiempo total agotado
                 if (remainingTotalTime <= 0) {
                     _gameState.value = GameState.DRAW
                     _navigationEvent.value = "DRAW"
@@ -138,51 +145,42 @@ class GameViewModel : ViewModel() {
             }
         }
 
-        viewModelScope.launch {
-            while (isTimerRunning) {
-                delay(1000L)
-                if (remainingActionTime > 0) remainingActionTime--
+        // Temporizador de acción
+        actionTimerJob = viewModelScope.launch {
+            while (isTimerRunning && _gameState.value == GameState.ONGOING) {
+                resetActionTimer()
 
-                if (remainingActionTime <= 0) {
-                    resetActionTimer()
+                while (remainingActionTime > 0 && _gameState.value == GameState.ONGOING) {
+                    delay(1000L)
+                    remainingActionTime--
+                }
 
-                    // Cambiamos de turno...
-                    _currentTurn.value = when (_currentTurn.value) {
-                        PlayerTurn.PLAYER -> PlayerTurn.OPPONENT
-                        PlayerTurn.OPPONENT -> PlayerTurn.PLAYER
-                        else -> PlayerTurn.PLAYER
-                    }
+                if (_gameState.value != GameState.ONGOING) break
 
-                    // Si ahora es el turno del oponente, ejecutamos su jugada
-                    if (_currentTurn.value == PlayerTurn.PLAYER) {
-                        _currentTurn.value = PlayerTurn.OPPONENT
-
-                        // ───────────────────────────────────────
-                        // Aquí metemos el “breve delay” para que
-                        // el cambio de turno se note en UI
-                        // ───────────────────────────────────────
-                        viewModelScope.launch {
-                            delay(2000L)                        // <— espera 2 s
-                            placeEnemyCardForTurn()            // el enemigo coloca carta
-                            _currentTurn.value = PlayerTurn.COMBAT
-
-                            delay(1000L)                        // <— espera 1 s antes de combate
-                            resolveCombat()                    // se ejecuta el combate
-
-                            // Una vez acabado, volvemos al jugador
-                            _currentTurn.value = PlayerTurn.PLAYER
-                        }
-                    }
+                // Cambio de turno automático
+                if (_currentTurn.value == PlayerTurn.PLAYER) {
+                    _currentTurn.value = PlayerTurn.OPPONENT
+                    delay(500L)
+                    placeEnemyCardForTurn()
+                    _currentTurn.value = PlayerTurn.COMBAT
+                    delay(500L)
+                    resolveCombat()
+                    if (_gameState.value != GameState.ONGOING) break
+                    _currentTurn.value = PlayerTurn.PLAYER
                 }
             }
         }
     }
+
+
 
     private fun resetActionTimer() {
         remainingActionTime = actionTimeSeconds
     }
 
     private fun stopTimers() {
+        totalTimerJob?.cancel()
+        actionTimerJob?.cancel()
         isTimerRunning = false
     }
 
@@ -205,29 +203,57 @@ class GameViewModel : ViewModel() {
             _playerHand.remove(card)
             _selectedCard.value = null
 
+            resetActionTimer()
+
             // Lanzamos la resolución con un breve delay
             viewModelScope.launch {
                 _currentTurn.value = PlayerTurn.COMBAT
                 delay(400L)                 // <— 0.4 s para que veas la carta en el tablero
+
                 resolveCombat()
+                placeEnemyCardForTurn()
+
+
+                _currentTurn.value = PlayerTurn.PLAYER
+                resetActionTimer()
             }
         }
     }
 
     private fun resolveCombat() {
-        playerSlots.zip(enemySlots).forEach { (p, e) ->
-            val pc = p.card; val ec = e.card
+
+        println("=== ANTES DE COMBATIR ===")
+        println("Player slots: ${playerSlots.map { it.card?.name + "(" + it.card?.health + ")" }}")
+        println("Enemy  slots: ${enemySlots .map { it.card?.name + "(" + it.card?.health + ")" }}")
+
+
+        playerSlots.zip(enemySlots).forEach { (playerSlot, enemySlot) ->
+            val playerCard = playerSlot.card
+            val enemyCard = enemySlot.card
+
             when {
-                pc != null && ec != null -> {
-                    pc.health -= ec.damage
-                    ec.health -= pc.damage
-                    if (pc.health <= 0) p.clear()
-                    if (ec.health <= 0) e.clear()
+                playerCard != null && enemyCard != null -> {
+                    // Crear nuevas instancias con salud actualizada
+                    val updatedPlayerCard = playerCard.withHealth(playerCard.health - enemyCard.damage)
+                    val updatedEnemyCard = enemyCard.withHealth(enemyCard.health - playerCard.damage)
+
+                    // Actualizar slots con las nuevas instancias
+                    playerSlot.updateCard(updatedPlayerCard)
+                    enemySlot.updateCard(updatedEnemyCard)
+
+                    // Eliminar cartas destruidas
+                    if (updatedPlayerCard.health <= 0) playerSlot.clear()
+                    if (updatedEnemyCard.health <= 0) enemySlot.clear()
                 }
-                pc != null && ec == null -> _enemy.value = _enemy.value.copy(currentHits = _enemy.value.currentHits - 1)
-                pc == null && ec != null -> _player.value = _player.value.copy(currentHits = _player.value.currentHits - 1)
+                playerCard != null && enemyCard == null -> _enemy.value = _enemy.value.copy(currentHits = _enemy.value.currentHits - 1)
+                playerCard == null && enemyCard != null -> _player.value = _player.value.copy(currentHits = _player.value.currentHits - 1)
             }
         }
+
+        // --- LOG AFTER ---
+        println("=== DESPUÉS DE COMBATIR ===")
+        println("Player slots: ${playerSlots.map { it.card?.name + "(" + it.card?.health + ")" }}")
+        println("Enemy  slots: ${enemySlots .map { it.card?.name + "(" + it.card?.health + ")" }}")
 
         checkGameState()
 
@@ -237,25 +263,23 @@ class GameViewModel : ViewModel() {
             drawCard(_enemy.value.deck)?.let { _enemyHand.add(it) }
         }
 
-        // Juega enemigo
-        placeEnemyCardForTurn()
-        _currentTurn.value = PlayerTurn.PLAYER
+
     }
 
     private fun checkGameState() {
-        val ph = _player.value.currentHits
-        val eh = _enemy.value.currentHits
-        val phCards = _player.value.deck.isNotEmpty() || _playerHand.isNotEmpty()
-        val ehCards = _enemy.value.deck.isNotEmpty() || _enemyHand.isNotEmpty()
+        val playerHits = _player.value.currentHits
+        val enemyHits = _enemy.value.currentHits
+        val playerHandCards = _player.value.deck.isNotEmpty() || _playerHand.isNotEmpty()
+        val enemyHandCards = _enemy.value.deck.isNotEmpty() || _enemyHand.isNotEmpty()
 
         when {
-            ph <= 0 && eh <= 0 -> { _gameState.value = GameState.DRAW;   _navigationEvent.value = "DRAW"   }
-            ph <= 0            -> { _gameState.value = GameState.DEFEAT; _navigationEvent.value = "DEFEAT" }
-            eh <= 0            -> { _gameState.value = GameState.VICTORY;_navigationEvent.value = "VICTORY"}
-            !phCards && !ehCards -> {
+            playerHits <= 0 && enemyHits <= 0 -> { _gameState.value = GameState.DRAW;   _navigationEvent.value = "DRAW"   }
+            playerHits <= 0            -> { _gameState.value = GameState.DEFEAT; _navigationEvent.value = "DEFEAT" }
+            enemyHits <= 0            -> { _gameState.value = GameState.VICTORY;_navigationEvent.value = "VICTORY"}
+            !playerHandCards && !enemyHandCards -> {
                 when {
-                    ph > eh -> { _gameState.value = GameState.VICTORY; _navigationEvent.value = "VICTORY" }
-                    ph < eh -> { _gameState.value = GameState.DEFEAT;  _navigationEvent.value = "DEFEAT"  }
+                    playerHits > enemyHits -> { _gameState.value = GameState.VICTORY; _navigationEvent.value = "VICTORY" }
+                    playerHits < enemyHits -> { _gameState.value = GameState.DEFEAT;  _navigationEvent.value = "DEFEAT"  }
                     else    -> { _gameState.value = GameState.DRAW;    _navigationEvent.value = "DRAW"    }
                 }
             }
