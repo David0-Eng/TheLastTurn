@@ -1,5 +1,6 @@
 package com.example.thelastturn.ui.screens
 
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -10,8 +11,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavController
 
 @Composable
 fun HomeScreen(
@@ -19,6 +20,9 @@ fun HomeScreen(
     onHelp: () -> Unit,
     onExit: () -> Unit
 ) {
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -29,111 +33,164 @@ fun HomeScreen(
             ),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(30.dp)
-        ) {
-            // Título con estilo "western" más grande
-            Text(
-                text = "The Last Turn",
-                style = MaterialTheme.typography.headlineLarge.copy(
-                    fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif,
-                    color = Color.White
-                )
-            )
-
-            Spacer(modifier = Modifier.height(100.dp))
-
-            // Botón "Empezar Partida"
-            Button(
-                onClick = { onStartGame() },
+        if (isLandscape) {
+            Row(
                 modifier = Modifier
-                    .padding(20.dp)
-                    .height(70.dp)
-                    .width(250.dp) // Ancho fijo para todos los botones
-                    .border(
-                        width = 3.dp,
-                        color = Color.Black,
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    .background(
-                        color = Color(0xFFA0522D),
-                        shape = RoundedCornerShape(12.dp)
-                    ),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.Transparent,
-                    contentColor = Color.White
-                )
+                    .fillMaxSize()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Empezar Partida",
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif
+                // Título centrado en su espacio
+                Box(
+                    modifier = Modifier.weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "The Last Turn",
+                        style = MaterialTheme.typography.headlineLarge.copy(
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif,
+                            color = Color.White
+                        )
                     )
-                )
+                }
+
+                // Botones en el lado derecho
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    val buttonModifier = Modifier
+                        .fillMaxWidth(0.8f)
+                        .height(60.dp)
+                        .border(3.dp, Color.Black, RoundedCornerShape(12.dp))
+                        .background(Color(0xFFA0522D), RoundedCornerShape(12.dp))
+
+                    Button(
+                        onClick = onStartGame,
+                        modifier = buttonModifier,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.Transparent,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text(
+                            text = "Empezar Partida",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif
+                            )
+                        )
+                    }
+
+                    Button(
+                        onClick = onHelp,
+                        modifier = buttonModifier,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.Transparent,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text(
+                            text = "Ayuda",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif
+                            )
+                        )
+                    }
+
+                    Button(
+                        onClick = onExit,
+                        modifier = buttonModifier,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.Transparent,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text(
+                            text = "Salir",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif
+                            )
+                        )
+                    }
+                }
             }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Botón "Ayuda"
-            Button(
-                onClick = { onHelp() },
+        } else {
+            Column(
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
-                    .padding(20.dp)
-                    .height(70.dp)
-                    .width(250.dp) // Ancho fijo para todos los botones
-                    .border(
-                        width = 3.dp,
-                        color = Color.Black,
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    .background(
-                        color = Color(0xFFA0522D),
-                        shape = RoundedCornerShape(12.dp)
-                    ),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.Transparent,
-                    contentColor = Color.White
-                )
+                    .fillMaxSize()
+                    .padding(30.dp)
             ) {
+                // Título grande
                 Text(
-                    text = "Ayuda",
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif
+                    text = "The Last Turn",
+                    style = MaterialTheme.typography.headlineLarge.copy(
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif,
+                        color = Color.White
                     )
                 )
-            }
 
-            Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(80.dp))
 
-            // Botón "Salir"
-            Button(
-                onClick = { onExit() },
-                modifier = Modifier
-                    .padding(20.dp)
+                val buttonModifier = Modifier
+                    .padding(8.dp)
                     .height(70.dp)
-                    .width(250.dp) // Ancho fijo para todos los botones
-                    .border(
-                        width = 3.dp,
-                        color = Color.Black,
-                        shape = RoundedCornerShape(12.dp)
+                    .fillMaxWidth(0.8f)
+                    .border(3.dp, Color.Black, RoundedCornerShape(12.dp))
+                    .background(Color(0xFFA0522D), RoundedCornerShape(12.dp))
+
+                Button(
+                    onClick = onStartGame,
+                    modifier = buttonModifier,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.Transparent,
+                        contentColor = Color.White
                     )
-                    .background(
-                        color = Color(0xFFA0522D),
-                        shape = RoundedCornerShape(12.dp)
-                    ),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.Transparent,
-                    contentColor = Color.White
-                )
-            ) {
-                Text(
-                    text = "Salir",
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif
+                ) {
+                    Text(
+                        text = "Empezar Partida",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif
+                        )
                     )
-                )
+                }
+
+                Button(
+                    onClick = onHelp,
+                    modifier = buttonModifier,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.Transparent,
+                        contentColor = Color.White
+                    )
+                ) {
+                    Text(
+                        text = "Ayuda",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif
+                        )
+                    )
+                }
+
+                Button(
+                    onClick = onExit,
+                    modifier = buttonModifier,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.Transparent,
+                        contentColor = Color.White
+                    )
+                ) {
+                    Text(
+                        text = "Salir",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif
+                        )
+                    )
+                }
             }
         }
     }

@@ -11,7 +11,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Favorite
@@ -33,13 +35,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.thelastturn.R
 import com.example.thelastturn.model.BoardSlot
 import com.example.thelastturn.model.Card
-import com.example.thelastturn.viewmodel.GameViewModel
 import com.example.thelastturn.model.PlayerTurn
+import com.example.thelastturn.viewmodel.GameViewModel
 
 @Composable
 fun isLandscape(): Boolean {
-    val configuration = LocalConfiguration.current
-    return configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    return LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 }
 
 @Composable
@@ -53,115 +54,87 @@ fun GameScreen(onGameEnd: (String) -> Unit) {
         }
     }
 
-
     val landscape = isLandscape()
-
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF5F5DC)), // fondo beige
+            .background(Color(0xFFF5F5DC)),
         contentAlignment = Alignment.Center
     ) {
-
         if (landscape) {
-            Column(
+            Row(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(8.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    TimerDisplay(viewModel)
-                }
-
-                Row(
+                // Lado izquierdo: info del juego
+                Column(
                     modifier = Modifier
                         .weight(1f)
-                        .fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                        .fillMaxHeight()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .weight(2f)
-                            .fillMaxHeight()
-                            .padding(end = 16.dp), // espacio entre enemigo y jugador
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        EnemyInfo(viewModel)
+                    TimerDisplay(viewModel)
 
-                        BoardSection(
-                            slots = viewModel.enemySlots,
-                            isPlayer = false,
-                            viewModel = viewModel,
-                            cardSpacing = 8.dp
-                        )
-                    }
+                    EnemyInfo(viewModel)
+                    PlayerInfo(viewModel)
 
-                    Column(
-                        modifier = Modifier
-                            .weight(2f)
-                            .fillMaxHeight()
-                            .padding(start = 16.dp), // espacio entre enemigo y jugador
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        PlayerInfo(viewModel)
-
-                        BoardSection(
-                            slots = viewModel.playerSlots,
-                            isPlayer = true,
-                            viewModel = viewModel,
-                            cardSpacing = 8.dp
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp)) // espacio entre tablero y mano
-
-                Box(
-                    modifier = Modifier
-                        .height(180.dp),
-                    contentAlignment = Alignment.Center
-                ) {
                     PlayerHand(
                         cards = viewModel.playerHand.take(4),
                         selectedCard = viewModel.selectedCard.value,
                         onCardSelected = { viewModel.selectCard(it) }
                     )
                 }
-            }
-        }
 
-        else {
+                Spacer(modifier = Modifier.width(16.dp))
+
+                // Lado derecho: zona de juego (slots)
+                Column(
+                    modifier = Modifier
+                        .weight(2f)
+                        .fillMaxHeight(),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("Enemigo:", style = MaterialTheme.typography.titleMedium)
+                    BoardSection(
+                        slots = viewModel.enemySlots,
+                        isPlayer = false,
+                        viewModel = viewModel,
+                        cardSpacing = 8.dp
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Jugador:", style = MaterialTheme.typography.titleMedium)
+                    BoardSection(
+                        slots = viewModel.playerSlots,
+                        isPlayer = true,
+                        viewModel = viewModel,
+                        cardSpacing = 8.dp
+                    )
+                }
+            }
+        } else {
             Column(
                 modifier = Modifier
                     .padding(10.dp)
-                    .matchParentSize(),
-                verticalArrangement = Arrangement.SpaceEvenly
+                    .fillMaxSize(),
+                verticalArrangement = Arrangement.SpaceEvenly,
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 8.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    TimerDisplay(viewModel)
-                }
-
+                TimerDisplay(viewModel)
                 EnemyInfo(viewModel)
                 BoardSection(
                     slots = viewModel.enemySlots,
                     isPlayer = false,
-                    viewModel = viewModel,
+                    viewModel = viewModel
                 )
                 BoardSection(
                     slots = viewModel.playerSlots,
                     isPlayer = true,
-                    viewModel = viewModel,
+                    viewModel = viewModel
                 )
                 PlayerInfo(viewModel)
                 PlayerHand(
@@ -173,7 +146,6 @@ fun GameScreen(onGameEnd: (String) -> Unit) {
         }
     }
 }
-
 
 @Composable
 private fun PlayerInfo(viewModel: GameViewModel) {
@@ -214,8 +186,7 @@ private fun HealthIcons(health: Int) {
     val maxHealth = 3
     Row {
         repeat(maxHealth) { index ->
-            val isVisible = index < health
-            AnimatedVisibility(visible = isVisible) {
+            AnimatedVisibility(visible = index < health) {
                 Icon(
                     imageVector = Icons.Default.Favorite,
                     contentDescription = "Corazón",
@@ -234,16 +205,31 @@ private fun BoardSection(
     viewModel: GameViewModel,
     cardSpacing: Dp = 14.dp
 ) {
-    LazyRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(cardSpacing)
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
     ) {
-        items(slots) { slot ->
-            BoardSlotUI(
-                slot = slot,
-                isPlayer = isPlayer,
-                viewModel = viewModel,
-            )
+        // Número de slots, al menos 1 para evitar división por cero
+        val slotCount = slots.size.coerceAtLeast(1)
+        // Espacio total ocupado por los gaps
+        val totalSpacing = cardSpacing * (slotCount - 1)
+        // Ancho disponible para los slots
+        val slotWidth = (maxWidth - totalSpacing) / slotCount
+
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(cardSpacing)
+        ) {
+            items(slots) { slot ->
+                BoardSlotUI(
+                    slot = slot,
+                    isPlayer = isPlayer,
+                    viewModel = viewModel,
+                    width = slotWidth,
+                    height = 120.dp
+                )
+            }
         }
     }
 }
@@ -252,39 +238,33 @@ private fun BoardSection(
 private fun BoardSlotUI(
     slot: BoardSlot,
     isPlayer: Boolean,
-    viewModel: GameViewModel
+    viewModel: GameViewModel,
+    width: Dp = 73.dp,       // valores por defecto para compatibilidad
+    height: Dp = 120.dp
 ) {
-    val cardInSlot = slot.card
     val slotColor = if (isPlayer) Color(0xFF2196F3) else Color(0xFFF44336)
 
     Box(
         modifier = Modifier
-            .width(73.dp)
-            .height(120.dp)
-            .border(
-                width = 1.5.dp,
-                color = slotColor,
-                shape = RoundedCornerShape(8.dp)
-            )
+            .width(width)
+            .height(height)
+            .border(1.5.dp, slotColor, RoundedCornerShape(8.dp))
             .clickable(enabled = isPlayer && viewModel.currentTurn.value == PlayerTurn.PLAYER) {
-                if (viewModel.selectedCard.value != null) {
-                    viewModel.placeCard(slot.id)
-                }
+                viewModel.selectedCard.value?.let { viewModel.placeCard(slot.id) }
             }
-            .background(slotColor.copy(alpha = 0.1f), shape = RoundedCornerShape(8.dp))
+            .background(slotColor.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
             .clip(RoundedCornerShape(8.dp)),
         contentAlignment = Alignment.Center
     ) {
-        AnimatedVisibility(visible = cardInSlot != null) {
-            cardInSlot?.let {
-                CardInSlot(card = it)
-            }
+        AnimatedVisibility(visible = slot.card != null) {
+            slot.card?.let { CardInSlot(card = it) }
         }
-        if (cardInSlot == null) {
+        if (slot.card == null) {
             SlotPlaceholder(color = slotColor)
         }
     }
 }
+
 
 @Composable
 private fun CardInSlot(card: Card) {
@@ -346,8 +326,8 @@ private fun SlotPlaceholder(color: Color) {
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .fillMaxSize()
-            .background(color = color.copy(alpha = 0.1f), shape = RoundedCornerShape(18.dp))
-            .border(1.5.dp, color = color, shape = RoundedCornerShape(10.dp))
+            .background(color.copy(alpha = 0.1f), RoundedCornerShape(18.dp))
+            .border(1.5.dp, color, RoundedCornerShape(10.dp))
     ) {
         Icon(
             imageVector = Icons.Default.AddCircle,
@@ -387,7 +367,6 @@ private fun PlayerHand(
         }
     }
 }
-
 
 @Composable
 private fun CardUI(
