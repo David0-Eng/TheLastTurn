@@ -234,8 +234,6 @@ private fun SendEmailButton(
             )
             val bodyText = buildString {
                 append("Fecha y hora: $dateTime\n")
-                append("Jugador: $playerName\n")
-                append("Tablero: $boardSize\n")
                 append("Resultado: ${
                     when (result) {
                         "VICTORY" -> "¡Victoria!"
