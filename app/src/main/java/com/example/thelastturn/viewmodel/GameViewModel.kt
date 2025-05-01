@@ -14,24 +14,30 @@ import com.example.thelastturn.model.Card
 import com.example.thelastturn.model.GameState
 import com.example.thelastturn.model.Player
 import com.example.thelastturn.model.PlayerTurn
-import kotlinx.coroutines.Job                                     //Consultar si se puede usar
+import kotlinx.coroutines.Job
 
 class GameViewModel : ViewModel() {
 
+    // Configuración de tablero y tiempos
     var numberOfSlots by mutableStateOf(0); private set
-    var remainingTotalTime by mutableStateOf(0)             //Variable para modificar el tiempo total
-    var remainingActionTime by mutableStateOf(0)            //Variable para modificar el tiempo de acción
-    private var isTimerRunning by mutableStateOf(false)     //Variable para controlar el inicio del temporizador
+    var remainingTotalTime by mutableStateOf(0)
+    var remainingActionTime by mutableStateOf(0)
 
-    var totalTimeSeconds by mutableStateOf(0)               //Variable para recuperar el tiempo total
-    var actionTimeSeconds by mutableStateOf(0)              //Variable para recuperar el tiempo de acción
+    var totalTimeSeconds by mutableStateOf(0)
+    var actionTimeSeconds by mutableStateOf(0)
 
-    private var totalTimerJob: Job? = null                        //Consultar si se puede usar Job
-    private var actionTimerJob: Job? = null                       //Consultar si se puede usar Job
+    private var isTimerRunning by mutableStateOf(false)
+    private var totalTimerJob: Job? = null
+    private var actionTimerJob: Job? = null
 
     // Estado de la partida
     private val _gameState = mutableStateOf(GameState.ONGOING)
-    val gameState get() = _gameState
+    val gameState get() = _gameState.value
+
+    // Métricas para el log
+    var cardsEliminated by mutableStateOf(0); private set
+    var totalDamageDealt by mutableStateOf(0); private set
+    var totalDamageReceived by mutableStateOf(0); private set
 
     // Jugadores
     private val _player = mutableStateOf(Player("Jugador", 3, 3, mutableListOf()))
@@ -42,26 +48,25 @@ class GameViewModel : ViewModel() {
 
     // Turno actual
     private val _currentTurn = mutableStateOf(PlayerTurn.PLAYER)
-    val currentTurn get() = _currentTurn
+    val currentTurn get() = _currentTurn.value
 
-    // Slots
+    // Slots de tablero
     val playerSlots = mutableStateListOf<BoardSlot>()
     val enemySlots  = mutableStateListOf<BoardSlot>()
 
     // Manos
     private val _playerHand = mutableStateListOf<Card>()
     val playerHand get() = _playerHand
-
     private val _enemyHand = mutableStateListOf<Card>()
     val enemyHand get() = _enemyHand
 
     // Carta seleccionada
     private val _selectedCard = mutableStateOf<Card?>(null)
-    val selectedCard get() = _selectedCard
+    val selectedCard get() = _selectedCard.value
 
     // Evento de navegación al final
     private val _navigationEvent = mutableStateOf<String?>(null)
-    val navigationEvent get() = _navigationEvent
+    val navigationEvent get() = _navigationEvent.value
 
     /** Arranca de cero un nuevo juego con `numSlots` y nombre de jugador */
     fun startNewGame(
@@ -71,47 +76,30 @@ class GameViewModel : ViewModel() {
         actionTime: Int
     ) {
         stopTimers()
-
+        resetMetrics()
 
         numberOfSlots = numSlots
-
         totalTimeSeconds = totalTime
         actionTimeSeconds = actionTime
-
         remainingTotalTime = totalTimeSeconds
         remainingActionTime = actionTimeSeconds
 
-
-        // 1) Reset estado básico
+        // Reset de estado
         _gameState.value = GameState.ONGOING
         _currentTurn.value = PlayerTurn.PLAYER
         _navigationEvent.value = null
 
         startTimers()
 
-        // 2) Prepara mazos fresh
-        val baseDeck: List<Card> = Card.sampleDeck()
+        // Preparar mazos
+        val baseDeck = Card.sampleDeck()
+        val playerDeck = baseDeck.map { it.copy() }.toMutableList()
+        val enemyDeck  = baseDeck.shuffled().map { it.copy() }.toMutableList()
 
-        // Para el jugador: mapeamos y copiamos cada carta
-        val playerDeck: MutableList<Card> = baseDeck
-            .map { card ->
-                card.copy()       // hace una copia independiente
-            }
-            .toMutableList()
+        _player.value = Player(playerName, 3, 3, playerDeck)
+        _enemy.value  = Player("Enemigo", 3, 3, enemyDeck)
 
-        // Para el enemigo: barajamos y luego copiamos
-        val enemyDeck: MutableList<Card> = baseDeck
-            .shuffled()
-            .map { card ->
-                card.copy()
-            }
-            .toMutableList()
-
-
-        _player.value = Player(playerName,   3, 3, playerDeck)
-        _enemy.value  = Player("Enemigo",    3, 3, enemyDeck)
-
-        // 3) Slots dinámicos
+        // Configurar slots
         playerSlots.clear()
         enemySlots.clear()
         repeat(numSlots) { i ->
@@ -119,18 +107,24 @@ class GameViewModel : ViewModel() {
             enemySlots.add(BoardSlot(i + 1 + numSlots))
         }
 
-        // 4) Manos y selección limpia
+        // Limpiar manos y selección
         _playerHand.clear()
         _enemyHand.clear()
         _selectedCard.value = null
 
-        // 5) Roba inicial y coloca inicial del enemigo
+        // Robar inicial y colocar enemigo
         drawInitialCards()
         placeInitialEnemyCard()
     }
 
+    private fun resetMetrics() {
+        cardsEliminated = 0
+        totalDamageDealt = 0
+        totalDamageReceived = 0
+    }
+
     private fun startTimers() {
-        stopTimers()            //Parar jobs anteriores
+        stopTimers()
         isTimerRunning = true
 
         totalTimerJob = viewModelScope.launch {
@@ -140,16 +134,13 @@ class GameViewModel : ViewModel() {
                 if (remainingTotalTime <= 0) {
                     _gameState.value = GameState.DRAW
                     _navigationEvent.value = "DRAW"
-                    stopTimers()
                 }
             }
         }
 
-        // Temporizador de acción
         actionTimerJob = viewModelScope.launch {
             while (isTimerRunning && _gameState.value == GameState.ONGOING) {
                 resetActionTimer()
-
                 while (remainingActionTime > 0 && _gameState.value == GameState.ONGOING) {
                     delay(1000L)
                     remainingActionTime--
@@ -157,7 +148,6 @@ class GameViewModel : ViewModel() {
 
                 if (_gameState.value != GameState.ONGOING) break
 
-                // Cambio de turno automático
                 if (_currentTurn.value == PlayerTurn.PLAYER) {
                     _currentTurn.value = PlayerTurn.OPPONENT
                     delay(500L)
@@ -171,8 +161,6 @@ class GameViewModel : ViewModel() {
             }
         }
     }
-
-
 
     private fun resetActionTimer() {
         remainingActionTime = actionTimeSeconds
@@ -202,18 +190,13 @@ class GameViewModel : ViewModel() {
             slot.placeCard(card)
             _playerHand.remove(card)
             _selectedCard.value = null
-
             resetActionTimer()
 
-            // Lanzamos la resolución con un breve delay
             viewModelScope.launch {
                 _currentTurn.value = PlayerTurn.COMBAT
-                delay(400L)                 // <— 0.4 s para que veas la carta en el tablero
-
+                delay(400L)
                 resolveCombat()
                 placeEnemyCardForTurn()
-
-
                 _currentTurn.value = PlayerTurn.PLAYER
                 resetActionTimer()
             }
@@ -221,66 +204,68 @@ class GameViewModel : ViewModel() {
     }
 
     private fun resolveCombat() {
-
-        println("=== ANTES DE COMBATIR ===")
-        println("Player slots: ${playerSlots.map { it.card?.name + "(" + it.card?.health + ")" }}")
-        println("Enemy  slots: ${enemySlots .map { it.card?.name + "(" + it.card?.health + ")" }}")
-
-
         playerSlots.zip(enemySlots).forEach { (playerSlot, enemySlot) ->
             val playerCard = playerSlot.card
-            val enemyCard = enemySlot.card
-
+            val enemyCard  = enemySlot.card
             when {
                 playerCard != null && enemyCard != null -> {
-                    // Crear nuevas instancias con salud actualizada
-                    val updatedPlayerCard = playerCard.withHealth(playerCard.health - enemyCard.damage)
-                    val updatedEnemyCard = enemyCard.withHealth(enemyCard.health - playerCard.damage)
+                    val damageToEnemy = playerCard.damage
+                    val damageToPlayer = enemyCard.damage
 
-                    // Actualizar slots con las nuevas instancias
-                    playerSlot.updateCard(updatedPlayerCard)
-                    enemySlot.updateCard(updatedEnemyCard)
+                    // Actualizar métricas
+                    totalDamageDealt += damageToEnemy
+                    totalDamageReceived += damageToPlayer
 
-                    // Eliminar cartas destruidas
-                    if (updatedPlayerCard.health <= 0) playerSlot.clear()
-                    if (updatedEnemyCard.health <= 0) enemySlot.clear()
+                    val updatedPlayer = playerCard.withHealth(playerCard.health - damageToPlayer)
+                    val updatedEnemy  = enemyCard.withHealth(enemyCard.health - damageToEnemy)
+
+                    playerSlot.updateCard(updatedPlayer)
+                    enemySlot.updateCard(updatedEnemy)
+
+                    if (updatedEnemy.health <= 0) {
+                        enemySlot.clear()
+                        cardsEliminated++
+                    }
+                    if (updatedPlayer.health <= 0) {
+                        playerSlot.clear()
+                    }
                 }
-                playerCard != null && enemyCard == null -> _enemy.value = _enemy.value.copy(currentHits = _enemy.value.currentHits - 1)
-                playerCard == null && enemyCard != null -> _player.value = _player.value.copy(currentHits = _player.value.currentHits - 1)
+                playerCard != null && enemyCard == null -> {
+                    // enemigo sin carta: cuenta como daño directo
+                    totalDamageDealt += playerCard.damage
+                    _enemy.value = _enemy.value.copy(currentHits = _enemy.value.currentHits - 1)
+                }
+                playerCard == null && enemyCard != null -> {
+                    totalDamageReceived += enemyCard.damage
+                    _player.value = _player.value.copy(currentHits = _player.value.currentHits - 1)
+                }
             }
         }
 
-        // --- LOG AFTER ---
-        println("=== DESPUÉS DE COMBATIR ===")
-        println("Player slots: ${playerSlots.map { it.card?.name + "(" + it.card?.health + ")" }}")
-        println("Enemy  slots: ${enemySlots .map { it.card?.name + "(" + it.card?.health + ")" }}")
-
         checkGameState()
 
-        // Roban 2 cartas
+        // Robar 2 cartas post-combate
         repeat(2) {
             drawCard(_player.value.deck)?.let { _playerHand.add(it) }
             drawCard(_enemy.value.deck)?.let { _enemyHand.add(it) }
         }
-
-
     }
 
     private fun checkGameState() {
-        val playerHits = _player.value.currentHits
-        val enemyHits = _enemy.value.currentHits
-        val playerHandCards = _player.value.deck.isNotEmpty() || _playerHand.isNotEmpty()
-        val enemyHandCards = _enemy.value.deck.isNotEmpty() || _enemyHand.isNotEmpty()
+        val pHits = _player.value.currentHits
+        val eHits = _enemy.value.currentHits
+        val pCards = _player.value.deck.isNotEmpty() || _playerHand.isNotEmpty()
+        val eCards = _enemy.value.deck.isNotEmpty() || _enemyHand.isNotEmpty()
 
         when {
-            playerHits <= 0 && enemyHits <= 0 -> { _gameState.value = GameState.DRAW;   _navigationEvent.value = "DRAW"   }
-            playerHits <= 0            -> { _gameState.value = GameState.DEFEAT; _navigationEvent.value = "DEFEAT" }
-            enemyHits <= 0            -> { _gameState.value = GameState.VICTORY;_navigationEvent.value = "VICTORY"}
-            !playerHandCards && !enemyHandCards -> {
+            pHits <= 0 && eHits <= 0 -> { _gameState.value = GameState.DRAW;   _navigationEvent.value = "DRAW"   }
+            pHits <= 0            -> { _gameState.value = GameState.DEFEAT; _navigationEvent.value = "DEFEAT" }
+            eHits <= 0            -> { _gameState.value = GameState.VICTORY;_navigationEvent.value = "VICTORY"}
+            !pCards && !eCards    -> {
                 when {
-                    playerHits > enemyHits -> { _gameState.value = GameState.VICTORY; _navigationEvent.value = "VICTORY" }
-                    playerHits < enemyHits -> { _gameState.value = GameState.DEFEAT;  _navigationEvent.value = "DEFEAT"  }
-                    else    -> { _gameState.value = GameState.DRAW;    _navigationEvent.value = "DRAW"    }
+                    pHits > eHits -> { _gameState.value = GameState.VICTORY; _navigationEvent.value = "VICTORY" }
+                    pHits < eHits -> { _gameState.value = GameState.DEFEAT;  _navigationEvent.value = "DEFEAT"  }
+                    else          -> { _gameState.value = GameState.DRAW;    _navigationEvent.value = "DRAW"    }
                 }
             }
         }
@@ -306,9 +291,14 @@ class GameViewModel : ViewModel() {
         }
     }
 
+    /** Retorna un string resumen de las métricas para el log */
+    fun getGameLogSummary(): String {
+        return "Cartas eliminadas: $cardsEliminated\n" +
+                "Daño infligido: $totalDamageDealt\n" +
+                "Daño recibido: $totalDamageReceived"
+    }
+
     fun resetNavigation() {
         _navigationEvent.value = null
     }
-
-    private fun logState() { /*…*/ }
 }

@@ -2,6 +2,7 @@ package com.example.thelastturn.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -27,13 +28,32 @@ fun ResultsScreen(
     playerName: String,
     result: String,
     boardSize: String,
+    gameLog: String,
+    playerLives: Int,
+    enemyLives: Int,
     onRestart: () -> Unit,
-    onExit: () -> Unit
+    onExit: () -> Unit,
+    onBackToHome: () -> Unit
 ) {
     val context = LocalContext.current
     var email by remember { mutableStateOf("") }
+    var logText by remember {
+        mutableStateOf(
+            buildString {
+                append("Jugador: $playerName\n")    // Aquí añado el nombre del jugador al log para hacerlo más fácil
+                append("Tablero: $boardSize\n")   // Aquí añado el tamaño del tablero
+                append("Vidas del jugador: $playerLives\n")   // 👈 Añadido
+                append("Vidas del enemigo: $enemyLives\n")
+                append(gameLog)
+            }
+        )
+    }
     val currentDateTime = remember {
         SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date())
+    }
+
+    BackHandler {
+        onBackToHome()
     }
 
     Surface(
@@ -49,20 +69,15 @@ fun ResultsScreen(
                     )
                 )
         ) {
-            BoxWithConstraints(
-                modifier = Modifier.fillMaxSize()
-            ) {
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                 val isLandscape = maxWidth > maxHeight
-
                 if (isLandscape) {
-                    // Disposición en dos columnas
                     Row(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(24.dp),
                         horizontalArrangement = Arrangement.spacedBy(24.dp)
                     ) {
-                        // Columna de datos
                         Column(
                             modifier = Modifier
                                 .weight(1f)
@@ -74,21 +89,29 @@ fun ResultsScreen(
                             Spacer(Modifier.height(16.dp))
                             ReadOnlyField("Día y hora", currentDateTime)
                             Spacer(Modifier.height(12.dp))
-                            ReadOnlyField("Jugador", playerName)
-                            Spacer(Modifier.height(12.dp))
-                            ReadOnlyField("Tablero", boardSize)
+                            // Campo log
+                            OutlinedTextField(
+                                value = logText,
+                                onValueChange = { logText = it },
+                                label = { Text("Valores del Log", color = Color.White) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(150.dp),
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White),
+                                singleLine = false,
+                                maxLines = 8,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
+                            )
                             Spacer(Modifier.height(12.dp))
                             OutlinedTextField(
                                 value = email,
                                 onValueChange = { email = it },
-                                label = { Text("Tu e-mail", color = Color.White) },
+                                label = { Text("E-mail destinatario", color = Color.White) },
                                 modifier = Modifier.fillMaxWidth(),
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                                 textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White)
                             )
                         }
-
-                        // Columna de botones
                         Column(
                             modifier = Modifier
                                 .weight(1f)
@@ -96,20 +119,27 @@ fun ResultsScreen(
                             verticalArrangement = Arrangement.Center,
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            SendEmailButton(email, result, currentDateTime, playerName, boardSize, context)
+                            SendEmailButton(
+                                email = email,
+                                result = result,
+                                dateTime = currentDateTime,
+                                playerName = playerName,
+                                boardSize = boardSize,
+                                gameLog = logText,
+                                context = context
+                            )
                             Spacer(Modifier.height(16.dp))
                             ActionButton("Nueva partida", onRestart)
                             Spacer(Modifier.height(16.dp))
                             ActionButton("Salir", onExit)
                         }
                     }
-
                 } else {
-                    // Disposición original en vertical
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(30.dp),
+                            .padding(30.dp)
+                            .verticalScroll(rememberScrollState()),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
@@ -117,20 +147,32 @@ fun ResultsScreen(
                         Spacer(Modifier.height(20.dp))
                         ReadOnlyField("Día y hora", currentDateTime)
                         Spacer(Modifier.height(16.dp))
-                        ReadOnlyField("Nombre del jugador", playerName)
-                        Spacer(Modifier.height(16.dp))
-                        ReadOnlyField("Medida del tablero", boardSize)
+
+                        // Campo log
+                        ReadOnlyField(
+                            labelText = "Valores del Log",
+                            value = logText
+                        )
+
                         Spacer(Modifier.height(16.dp))
                         OutlinedTextField(
                             value = email,
                             onValueChange = { email = it },
-                            label = { Text("Introduce tu email", color = Color.White) },
+                            label = { Text("E-mail destinatario", color = Color.White) },
                             modifier = Modifier.fillMaxWidth(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                             textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White)
                         )
                         Spacer(Modifier.height(24.dp))
-                        SendEmailButton(email, result, currentDateTime, playerName, boardSize, context)
+                        SendEmailButton(
+                            email = email,
+                            result = result,
+                            dateTime = currentDateTime,
+                            playerName = playerName,
+                            boardSize = boardSize,
+                            gameLog = logText,
+                            context = context
+                        )
                         Spacer(Modifier.height(16.dp))
                         ActionButton("Nueva partida", onRestart)
                         Spacer(Modifier.height(16.dp))
@@ -141,8 +183,6 @@ fun ResultsScreen(
         }
     }
 }
-
-// ---- Componentes auxiliares ----
 
 @Composable
 private fun ResultHeader(result: String) {
@@ -178,29 +218,34 @@ private fun SendEmailButton(
     dateTime: String,
     playerName: String,
     boardSize: String,
+    gameLog: String,
     context: android.content.Context
 ) {
     Button(
         onClick = {
-            val subject = Uri.encode("Resultados TheLastTurn: ${
-                when (result) {
-                    "VICTORY" -> "Victoria"
-                    "DEFEAT"  -> "Derrota"
-                    else      -> "Empate"
-                }
-            }")
-            val body = Uri.encode("""
-                Fecha y hora: $dateTime
-                Jugador: $playerName
-                Tablero: $boardSize
-                Resultado: ${
-                when (result) {
-                    "VICTORY" -> "¡Victoria!"
-                    "DEFEAT"  -> "Derrota"
-                    else      -> "Empate"
-                }
+            val subject = Uri.encode(
+                "Resultados TheLastTurn: ${
+                    when (result) {
+                        "VICTORY" -> "Victoria"
+                        "DEFEAT"  -> "Derrota"
+                        else      -> "Empate"
+                    }
+                } – $dateTime"
+            )
+            val bodyText = buildString {
+                append("Fecha y hora: $dateTime\n")
+                append("Jugador: $playerName\n")
+                append("Tablero: $boardSize\n")
+                append("Resultado: ${
+                    when (result) {
+                        "VICTORY" -> "¡Victoria!"
+                        "DEFEAT"  -> "Derrota"
+                        else      -> "Empate"
+                    }
+                }\n")
+                append("Log de la partida:\n$gameLog")
             }
-            """.trimIndent())
+            val body = Uri.encode(bodyText)
             val mailUri = Uri.parse("mailto:$email?subject=$subject&body=$body")
             val intent = Intent(Intent.ACTION_SENDTO, mailUri)
             context.startActivity(intent)
@@ -240,4 +285,3 @@ private fun ActionButton(text: String, onClick: () -> Unit) {
         )
     }
 }
-

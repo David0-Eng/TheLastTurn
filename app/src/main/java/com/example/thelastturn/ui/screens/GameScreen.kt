@@ -17,7 +17,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material3.*
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,11 +36,12 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.thelastturn.R
 import com.example.thelastturn.model.BoardSlot
 import com.example.thelastturn.model.Card
 import com.example.thelastturn.model.PlayerTurn
 import com.example.thelastturn.viewmodel.GameViewModel
+
+
 
 @Composable
 fun isLandscape(): Boolean {
@@ -45,16 +50,15 @@ fun isLandscape(): Boolean {
 
 @Composable
 fun GameScreen(onGameEnd: (String) -> Unit) {
-    val viewModel: GameViewModel = viewModel(viewModelStoreOwner = LocalActivity.current as ViewModelStoreOwner)
+    val viewModel: GameViewModel =
+        viewModel(viewModelStoreOwner = LocalActivity.current as ViewModelStoreOwner)
 
-    LaunchedEffect(viewModel.navigationEvent.value) {
-        viewModel.navigationEvent.value?.let { result ->
+    LaunchedEffect(viewModel.navigationEvent) {
+        viewModel.navigationEvent?.let { result ->
             onGameEnd(result)
             viewModel.resetNavigation()
         }
     }
-
-    val landscape = isLandscape()
 
     Box(
         modifier = Modifier
@@ -62,88 +66,88 @@ fun GameScreen(onGameEnd: (String) -> Unit) {
             .background(Color(0xFFF5F5DC)),
         contentAlignment = Alignment.Center
     ) {
-        if (landscape) {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(8.dp)
-            ) {
-                // Lado izquierdo: info del juego
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    TimerDisplay(viewModel)
-
-                    EnemyInfo(viewModel)
-                    PlayerInfo(viewModel)
-
-                    PlayerHand(
-                        cards = viewModel.playerHand.take(4),
-                        selectedCard = viewModel.selectedCard.value,
-                        onCardSelected = { viewModel.selectCard(it) }
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(16.dp))
-
-                // Lado derecho: zona de juego (slots)
-                Column(
-                    modifier = Modifier
-                        .weight(2f)
-                        .fillMaxHeight(),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text("Enemigo:", style = MaterialTheme.typography.titleMedium)
-                    BoardSection(
-                        slots = viewModel.enemySlots,
-                        isPlayer = false,
-                        viewModel = viewModel,
-                        cardSpacing = 8.dp
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("Jugador:", style = MaterialTheme.typography.titleMedium)
-                    BoardSection(
-                        slots = viewModel.playerSlots,
-                        isPlayer = true,
-                        viewModel = viewModel,
-                        cardSpacing = 8.dp
-                    )
-                }
-            }
+        if (isLandscape()) {
+            LandscapeGame(viewModel, onGameEnd)
         } else {
-            Column(
-                modifier = Modifier
-                    .padding(10.dp)
-                    .fillMaxSize(),
-                verticalArrangement = Arrangement.SpaceEvenly,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                TimerDisplay(viewModel)
-                EnemyInfo(viewModel)
-                BoardSection(
-                    slots = viewModel.enemySlots,
-                    isPlayer = false,
-                    viewModel = viewModel
-                )
-                BoardSection(
-                    slots = viewModel.playerSlots,
-                    isPlayer = true,
-                    viewModel = viewModel
-                )
-                PlayerInfo(viewModel)
-                PlayerHand(
-                    cards = viewModel.playerHand.take(4),
-                    selectedCard = viewModel.selectedCard.value,
-                    onCardSelected = { viewModel.selectCard(it) }
-                )
-            }
+            PortraitGame(viewModel)
         }
+    }
+}
+
+@Composable
+private fun LandscapeGame(viewModel: GameViewModel, onGameEnd: (String) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(8.dp)
+    ) {
+        // Panel izquierdo
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            TimerDisplay(viewModel)
+            EnemyInfo(viewModel)
+            PlayerInfo(viewModel)
+            PlayerHand(
+                cards = viewModel.playerHand.take(4),
+                selectedCard = viewModel.selectedCard,
+                onCardSelected = { viewModel.selectCard(it) }
+            )
+        }
+
+        Spacer(modifier = Modifier.width(16.dp))
+
+        // Panel derecho (tablero)
+        Column(
+            modifier = Modifier
+                .weight(2f)
+                .fillMaxHeight(),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("Enemigo:", style = MaterialTheme.typography.titleMedium)
+            BoardSection(
+                slots = viewModel.enemySlots,
+                isPlayer = false,
+                viewModel = viewModel,
+                cardSpacing = 8.dp
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Jugador:", style = MaterialTheme.typography.titleMedium)
+            BoardSection(
+                slots = viewModel.playerSlots,
+                isPlayer = true,
+                viewModel = viewModel,
+                cardSpacing = 8.dp
+            )
+        }
+    }
+}
+
+@Composable
+private fun PortraitGame(viewModel: GameViewModel) {
+    Column(
+        modifier = Modifier
+            .padding(10.dp)
+            .fillMaxSize(),
+        verticalArrangement = Arrangement.SpaceEvenly,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        TimerDisplay(viewModel)
+        EnemyInfo(viewModel)
+        BoardSection(slots = viewModel.enemySlots, isPlayer = false, viewModel = viewModel)
+        BoardSection(slots = viewModel.playerSlots, isPlayer = true, viewModel = viewModel)
+        PlayerInfo(viewModel)
+        PlayerHand(
+            cards = viewModel.playerHand.take(4),
+            selectedCard = viewModel.selectedCard,
+            onCardSelected = { viewModel.selectCard(it) }
+        )
     }
 }
 
@@ -160,7 +164,7 @@ private fun PlayerInfo(viewModel: GameViewModel) {
             Spacer(modifier = Modifier.width(8.dp))
             HealthIcons(viewModel.player.currentHits)
         }
-        Text("Turno: ${viewModel.currentTurn.value.name}")
+        Text("Turno: ${viewModel.currentTurn.name}")
     }
 }
 
@@ -210,11 +214,8 @@ private fun BoardSection(
             .fillMaxWidth()
             .padding(vertical = 8.dp)
     ) {
-        // Número de slots, al menos 1 para evitar división por cero
         val slotCount = slots.size.coerceAtLeast(1)
-        // Espacio total ocupado por los gaps
         val totalSpacing = cardSpacing * (slotCount - 1)
-        // Ancho disponible para los slots
         val slotWidth = (maxWidth - totalSpacing) / slotCount
 
         LazyRow(
@@ -239,7 +240,7 @@ private fun BoardSlotUI(
     slot: BoardSlot,
     isPlayer: Boolean,
     viewModel: GameViewModel,
-    width: Dp = 73.dp,       // valores por defecto para compatibilidad
+    width: Dp = 73.dp,
     height: Dp = 120.dp
 ) {
     val slotColor = if (isPlayer) Color(0xFF2196F3) else Color(0xFFF44336)
@@ -249,8 +250,8 @@ private fun BoardSlotUI(
             .width(width)
             .height(height)
             .border(1.5.dp, slotColor, RoundedCornerShape(8.dp))
-            .clickable(enabled = isPlayer && viewModel.currentTurn.value == PlayerTurn.PLAYER) {
-                viewModel.selectedCard.value?.let { viewModel.placeCard(slot.id) }
+            .clickable(enabled = isPlayer && viewModel.currentTurn == PlayerTurn.PLAYER) {
+                viewModel.selectedCard?.let { viewModel.placeCard(slot.id) }
             }
             .background(slotColor.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
             .clip(RoundedCornerShape(8.dp)),
@@ -264,7 +265,6 @@ private fun BoardSlotUI(
         }
     }
 }
-
 
 @Composable
 private fun CardInSlot(card: Card) {
@@ -350,8 +350,12 @@ private fun PlayerHand(
             .height(160.dp)
             .padding(2.dp)
             .shadow(elevation = 10.dp, shape = RoundedCornerShape(10.dp)),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFD2B48C)),
-        shape = RoundedCornerShape(10.dp)
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFFD2B48C),
+            contentColor   = Color.Black
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
     ) {
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -359,9 +363,9 @@ private fun PlayerHand(
         ) {
             items(cards) { card ->
                 CardUI(
-                    card = card,
+                    card       = card,
                     isSelected = card.id == selectedCard?.id,
-                    onClick = { onCardSelected(card) }
+                    onClick    = { onCardSelected(card) }
                 )
             }
         }
@@ -399,35 +403,27 @@ private fun TimerDisplay(viewModel: GameViewModel) {
         modifier = Modifier
             .padding(4.dp)
             .background(Color.Transparent),
-        colors = CardDefaults.cardColors(containerColor = Color(0xAAFFFFFF).copy(alpha = 0.9f))
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xAAFFFFFF).copy(alpha = 0.9f),
+            contentColor   = Color.Black
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = "Tiempo total",
-                    style = MaterialTheme.typography.labelSmall
-                )
-                Text(
-                    text = "${viewModel.remainingTotalTime}s",
-                    style = MaterialTheme.typography.titleMedium
-                )
+                Text("Tiempo total", style = MaterialTheme.typography.labelSmall)
+                Text("${viewModel.remainingTotalTime}s", style = MaterialTheme.typography.titleMedium)
             }
-
-            Spacer(modifier = Modifier.width(24.dp))
-
+            Spacer(Modifier.width(24.dp))
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = "Tiempo por acción",
-                    style = MaterialTheme.typography.labelSmall
-                )
-                Text(
-                    text = "${viewModel.remainingActionTime}s",
-                    style = MaterialTheme.typography.titleMedium
-                )
+                Text("Tiempo por acción", style = MaterialTheme.typography.labelSmall)
+                Text("${viewModel.remainingActionTime}s", style = MaterialTheme.typography.titleMedium)
             }
         }
     }
 }
+

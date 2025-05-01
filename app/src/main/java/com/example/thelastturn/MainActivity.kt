@@ -74,10 +74,14 @@ private fun Navigation() {
                 playerName = viewModel.player.name,
                 result = resultArg,
                 boardSize = sizeText,
+                gameLog      = viewModel.getGameLogSummary(),
+                playerLives = viewModel.player.currentHits,
+                enemyLives = viewModel.enemy.currentHits,
                 onRestart = {
                     navController.popBackStack("home", inclusive = false)
                 },
                 onExit = { activity?.finish() } // Usa el contexto de la actividad
+                ,onBackToHome = { navController.popBackStack("home", inclusive = false) }
             )
         }
 
