@@ -233,15 +233,15 @@ private fun SendEmailButton(
                 } – $dateTime"
             )
             val bodyText = buildString {
-                append("Fecha y hora: $dateTime\n")
-                append("Resultado: ${
+                append("Fecha y hora: $dateTime\n\n")
+                append("Log de la partida:\n$gameLog")
+                append("\nResultado: ${
                     when (result) {
                         "VICTORY" -> "¡Victoria!"
                         "DEFEAT"  -> "Derrota"
                         else      -> "Empate"
                     }
                 }\n")
-                append("Log de la partida:\n$gameLog")
             }
             val body = Uri.encode(bodyText)
             val mailUri = Uri.parse("mailto:$email?subject=$subject&body=$body")
