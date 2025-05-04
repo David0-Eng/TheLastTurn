@@ -280,7 +280,7 @@ class GameViewModel : ViewModel() {
         }
     }
 
-    // Lógica para comprobar el estado
+    // Lógica para comprobar el resultado de la partida
     private fun checkGameState() {
         val pHits = _player.value.currentHits
         val eHits = _enemy.value.currentHits
@@ -288,14 +288,63 @@ class GameViewModel : ViewModel() {
         val eCards = _enemy.value.deck.isNotEmpty() || _enemyHand.isNotEmpty()
 
         when {
-            pHits <= 0 && eHits <= 0 -> { _gameState.value = GameState.DRAW;   _navigationEvent.value = "DRAW"   }
-            pHits <= 0            -> { _gameState.value = GameState.DEFEAT; _navigationEvent.value = "DEFEAT" }
-            eHits <= 0            -> { _gameState.value = GameState.VICTORY;_navigationEvent.value = "VICTORY"}
-            !pCards && !eCards    -> {
+            // Ambos jugadores sin vidas
+            pHits <= 0 && eHits <= 0 -> {
                 when {
-                    pHits > eHits -> { _gameState.value = GameState.VICTORY; _navigationEvent.value = "VICTORY" }
-                    pHits < eHits -> { _gameState.value = GameState.DEFEAT;  _navigationEvent.value = "DEFEAT"  }
-                    else          -> { _gameState.value = GameState.DRAW;    _navigationEvent.value = "DRAW"    }
+                    totalDamageDealt > totalDamageReceived -> {
+                        _gameState.value = GameState.VICTORY
+                        _navigationEvent.value = "VICTORY"
+                    }
+                    totalDamageDealt < totalDamageReceived -> {
+                        _gameState.value = GameState.DEFEAT
+                        _navigationEvent.value = "DEFEAT"
+                    }
+                    else -> {
+                        _gameState.value = GameState.DRAW
+                        _navigationEvent.value = "DRAW"
+                    }
+                }
+            }
+
+            // Jugador sin vidas
+            pHits <= 0 -> {
+                _gameState.value = GameState.DEFEAT
+                _navigationEvent.value = "DEFEAT"
+            }
+
+            // Enemigo sin vidas
+            eHits <= 0 -> {
+                _gameState.value = GameState.VICTORY
+                _navigationEvent.value = "VICTORY"
+            }
+
+            // Ambos sin cartas
+            !pCards && !eCards -> {
+                when {
+                    pHits > eHits -> {
+                        _gameState.value = GameState.VICTORY
+                        _navigationEvent.value = "VICTORY"
+                    }
+                    pHits < eHits -> {
+                        _gameState.value = GameState.DEFEAT
+                        _navigationEvent.value = "DEFEAT"
+                    }
+                    else -> { // Vidas iguales: usar daño como desempate
+                        when {
+                            totalDamageDealt > totalDamageReceived -> {
+                                _gameState.value = GameState.VICTORY
+                                _navigationEvent.value = "VICTORY"
+                            }
+                            totalDamageDealt < totalDamageReceived -> {
+                                _gameState.value = GameState.DEFEAT
+                                _navigationEvent.value = "DEFEAT"
+                            }
+                            else -> {
+                                _gameState.value = GameState.DRAW
+                                _navigationEvent.value = "DRAW"
+                            }
+                        }
+                    }
                 }
             }
         }
