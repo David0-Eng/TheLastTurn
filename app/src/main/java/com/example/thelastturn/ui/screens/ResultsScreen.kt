@@ -35,6 +35,11 @@ fun ResultsScreen(
     onExit: () -> Unit,
     onBackToHome: () -> Unit
 ) {
+    val validResult = when (result.uppercase(Locale.getDefault())) {
+        "VICTORY", "DEFEAT", "DRAW" -> result.uppercase(Locale.getDefault())
+        else -> "DRAW"
+    }
+
     val context = LocalContext.current
     var email by remember { mutableStateOf("") }
     var logText by remember {
@@ -42,7 +47,7 @@ fun ResultsScreen(
             buildString {
                 append("Jugador: $playerName\n")    // Aquí añado el nombre del jugador al log para hacerlo más fácil
                 append("Tablero: $boardSize\n")   // Aquí añado el tamaño del tablero
-                append("Vidas del jugador: $playerLives\n")   // 👈 Añadido
+                append("Vidas del jugador: $playerLives\n")
                 append("Vidas del enemigo: $enemyLives\n")
                 append(gameLog)
             }
@@ -85,11 +90,11 @@ fun ResultsScreen(
                             verticalArrangement = Arrangement.Center,
                             horizontalAlignment = Alignment.Start
                         ) {
-                            ResultHeader(result)
+                            ResultHeader(validResult)
                             Spacer(Modifier.height(16.dp))
                             ReadOnlyField("Día y hora", currentDateTime)
                             Spacer(Modifier.height(12.dp))
-                            // Campo log
+                            // Gestión del log
                             OutlinedTextField(
                                 value = logText,
                                 onValueChange = { logText = it },
@@ -148,7 +153,7 @@ fun ResultsScreen(
                         ReadOnlyField("Día y hora", currentDateTime)
                         Spacer(Modifier.height(16.dp))
 
-                        // Campo log
+                        // Campo del log
                         ReadOnlyField(
                             labelText = "Valores del Log",
                             value = logText

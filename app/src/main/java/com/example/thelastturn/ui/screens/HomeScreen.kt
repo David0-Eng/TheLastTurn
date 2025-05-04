@@ -41,7 +41,6 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Título centrado en su espacio
                 Box(
                     modifier = Modifier.weight(1f),
                     contentAlignment = Alignment.Center
@@ -55,7 +54,7 @@ fun HomeScreen(
                     )
                 }
 
-                // Botones en el lado derecho
+                // Colocación de botones a la derecha
                 Column(
                     modifier = Modifier
                         .weight(1f)
@@ -126,7 +125,7 @@ fun HomeScreen(
                     .fillMaxSize()
                     .padding(30.dp)
             ) {
-                // Título grande
+                // Título del juego
                 Text(
                     text = "The Last Turn",
                     style = MaterialTheme.typography.headlineLarge.copy(

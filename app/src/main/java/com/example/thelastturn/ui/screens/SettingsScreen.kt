@@ -36,13 +36,13 @@ fun SettingsScreen(
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val scrollState = rememberScrollState()
 
-    // Adjust width fraction and spacing for landscape vs portrait
+
     val widthFraction = if (isLandscape) 0.6f else 1f
     val smallSpacer = if (isLandscape) 8.dp else 16.dp
     val mediumSpacer = if (isLandscape) 12.dp else 16.dp
     val largeSpacer = if (isLandscape) 16.dp else 24.dp
 
-    // Validation flags
+    // Comprobación de campos
     val isFormValid = playerName.isNotBlank() && totalTime.isNotBlank() && actionTime.isNotBlank()
     val nameError   = submitted && playerName.isBlank()
     val totalError  = submitted && totalTime.isBlank()

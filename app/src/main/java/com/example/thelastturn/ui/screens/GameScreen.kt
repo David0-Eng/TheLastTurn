@@ -81,7 +81,7 @@ private fun LandscapeGame(viewModel: GameViewModel, onGameEnd: (String) -> Unit)
             .fillMaxSize()
             .padding(8.dp)
     ) {
-        // Panel izquierdo
+        // Panel izquierdo para pantalla en horizontal
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -102,7 +102,7 @@ private fun LandscapeGame(viewModel: GameViewModel, onGameEnd: (String) -> Unit)
 
         Spacer(modifier = Modifier.width(16.dp))
 
-        // Panel derecho (tablero)
+        // Panel derecho (tablero) en la pantalla horizontal
         Column(
             modifier = Modifier
                 .weight(2f)

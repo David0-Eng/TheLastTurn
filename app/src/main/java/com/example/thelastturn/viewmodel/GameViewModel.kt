@@ -27,8 +27,8 @@ class GameViewModel : ViewModel() {
     var actionTimeSeconds by mutableStateOf(0)
 
     private var isTimerRunning by mutableStateOf(false)
-    private var totalTimerJob: Job? = null
-    private var actionTimerJob: Job? = null
+    private var totalTimerJob: Job? = null                      // Uso de Job para gestionar mejor los tiempos
+    private var actionTimerJob: Job? = null                     // Consultado su uso en clase
 
     // Estado de la partida
     private val _gameState = mutableStateOf(GameState.ONGOING)
@@ -54,7 +54,7 @@ class GameViewModel : ViewModel() {
     val playerSlots = mutableStateListOf<BoardSlot>()
     val enemySlots  = mutableStateListOf<BoardSlot>()
 
-    // Manos
+    // Manos / mazos
     private val _playerHand = mutableStateListOf<Card>()
     val playerHand get() = _playerHand
     private val _enemyHand = mutableStateListOf<Card>()
@@ -64,11 +64,11 @@ class GameViewModel : ViewModel() {
     private val _selectedCard = mutableStateOf<Card?>(null)
     val selectedCard get() = _selectedCard.value
 
-    // Evento de navegación al final
+    // Evento de navegación
     private val _navigationEvent = mutableStateOf<String?>(null)
     val navigationEvent get() = _navigationEvent.value
 
-    /** Arranca de cero un nuevo juego con `numSlots` y nombre de jugador */
+    // Inicia una nueva partida
     fun startNewGame(
         numSlots: Int,
         playerName: String,
@@ -112,7 +112,7 @@ class GameViewModel : ViewModel() {
         _enemyHand.clear()
         _selectedCard.value = null
 
-        // Robar inicial y colocar enemigo
+        // Pillar primera carta, y movimiento del enemigo
         drawInitialCards()
         placeInitialEnemyCard()
     }
@@ -132,8 +132,7 @@ class GameViewModel : ViewModel() {
                 delay(1000L)
                 remainingTotalTime--
                 if (remainingTotalTime <= 0) {
-                    _gameState.value = GameState.DRAW
-                    _navigationEvent.value = "DRAW"
+                    evaluateEndGameByTime()
                 }
             }
         }
@@ -157,6 +156,36 @@ class GameViewModel : ViewModel() {
                     resolveCombat()
                     if (_gameState.value != GameState.ONGOING) break
                     _currentTurn.value = PlayerTurn.PLAYER
+                }
+            }
+        }
+    }
+
+    private fun evaluateEndGameByTime() {
+        // Comparar vidas restantes
+        when {
+            player.currentHits > enemy.currentHits -> {
+                _gameState.value = GameState.VICTORY
+                _navigationEvent.value = "VICTORY"
+            }
+            player.currentHits < enemy.currentHits -> {
+                _gameState.value = GameState.DEFEAT
+                _navigationEvent.value = "DEFEAT"
+            }
+            else -> { // Vidas iguales: usar daño como desempate
+                when {
+                    totalDamageDealt > totalDamageReceived -> {
+                        _gameState.value = GameState.VICTORY
+                        _navigationEvent.value = "VICTORY"
+                    }
+                    totalDamageDealt < totalDamageReceived -> {
+                        _gameState.value = GameState.DEFEAT
+                        _navigationEvent.value = "DEFEAT"
+                    }
+                    else -> { // Daño igual: empate
+                        _gameState.value = GameState.DRAW
+                        _navigationEvent.value = "DRAW"
+                    }
                 }
             }
         }
@@ -212,7 +241,7 @@ class GameViewModel : ViewModel() {
                     val damageToEnemy = playerCard.damage
                     val damageToPlayer = enemyCard.damage
 
-                    // Actualizar métricas
+                    // Actualizar valores
                     totalDamageDealt += damageToEnemy
                     totalDamageReceived += damageToPlayer
 
@@ -231,7 +260,7 @@ class GameViewModel : ViewModel() {
                     }
                 }
                 playerCard != null && enemyCard == null -> {
-                    // enemigo sin carta: cuenta como daño directo
+                    // Enemigo sin carta: daño directo
                     totalDamageDealt += playerCard.damage
                     _enemy.value = _enemy.value.copy(currentHits = _enemy.value.currentHits - 1)
                 }
@@ -244,13 +273,14 @@ class GameViewModel : ViewModel() {
 
         checkGameState()
 
-        // Robar 2 cartas post-combate
+        // Robar 2 cartas tras el duelo
         repeat(2) {
             drawCard(_player.value.deck)?.let { _playerHand.add(it) }
             drawCard(_enemy.value.deck)?.let { _enemyHand.add(it) }
         }
     }
 
+    // Lógica para comprobar el estado
     private fun checkGameState() {
         val pHits = _player.value.currentHits
         val eHits = _enemy.value.currentHits
@@ -291,7 +321,7 @@ class GameViewModel : ViewModel() {
         }
     }
 
-    /** Retorna un string resumen de las métricas para el log */
+    // Gestionamos el log
     fun getGameLogSummary(): String {
         return "Cartas eliminadas: $cardsEliminated\n" +
                 "Daño infligido: $totalDamageDealt\n" +

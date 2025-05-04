@@ -19,6 +19,8 @@ class BoardSlot(
         card = null
     }
 
+    // Metodos para gestionar las cartas
+
     fun placeCard(newCard: Card) {
         card = newCard
     }

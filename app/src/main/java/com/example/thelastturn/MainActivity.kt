@@ -49,14 +49,13 @@ private fun Navigation() {
             HomeScreen(
                 onStartGame = { navController.navigate("settings") },
                 onHelp = { navController.navigate("help") },
-                onExit = { activity?.finish() } // Usa el contexto de la actividad
+                onExit = { activity?.finish() } // Finalizamos directamente la actividad
             )
         }
 
         composable("settings") {
             SettingsScreen { playerName, numSlots, totalTime, actionTime ->
                 viewModel.startNewGame(numSlots, playerName, totalTime, actionTime)
-                // Si necesitas usar totalTime/actionTime dentro del VM, lo guardarías aquí
                 navController.navigate("game")
             }
         }
@@ -80,7 +79,7 @@ private fun Navigation() {
                 onRestart = {
                     navController.popBackStack("home", inclusive = false)
                 },
-                onExit = { activity?.finish() } // Usa el contexto de la actividad
+                onExit = { activity?.finish() } // Finalizamos directamente la actividad
                 ,onBackToHome = { navController.popBackStack("home", inclusive = false) }
             )
         }
