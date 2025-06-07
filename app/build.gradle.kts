@@ -2,6 +2,10 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+
+    //ADED:
+    alias(libs.plugins.ksp)
+    id("kotlin-parcelize")
 }
 
 android {
@@ -59,13 +63,28 @@ dependencies {
     debugImplementation(libs.androidx.ui.test.manifest)
 
     //ADDED:
-    implementation("androidx.compose.material3:material3:1.2.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.1")
     implementation("androidx.navigation:navigation-compose:2.7.3")
     implementation("androidx.activity:activity-compose:1.8.0")
     implementation("androidx.compose.runtime:runtime-livedata:1.4.3")
     implementation ("androidx.core:core-splashscreen:1.0.1")
+
+    // DataStore
+    implementation ("androidx.datastore:datastore-preferences:1.0.0")
+
+    // Room
+    implementation ("androidx.room:room-runtime:2.6.1")
+
+    implementation ("androidx.room:room-ktx:2.6.1")
+    ksp("androidx.room:room-compiler:2.6.1")
+
+    // ViewModel con SavedState
+    implementation ("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.2")
+    implementation ("androidx.lifecycle:lifecycle-runtime-ktx:2.6.2")
+
+    // Navigation
+    implementation ("androidx.navigation:navigation-compose:2.7.6")
 
 
 
