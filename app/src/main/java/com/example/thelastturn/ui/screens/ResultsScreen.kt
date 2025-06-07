@@ -20,6 +20,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.example.thelastturn.data.GameRepository // Import your GameRepository
+import com.example.thelastturn.data.Partida // Import your Partida data class
+import kotlinx.coroutines.launch // Needed for coroutine scope
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -27,34 +30,59 @@ import java.util.*
 fun ResultsScreen(
     playerName: String,
     result: String,
-    boardSize: String,
+    boardSize: Int,
     gameLog: String,
     playerLives: Int,
     enemyLives: Int,
     onRestart: () -> Unit,
     onExit: () -> Unit,
-    onBackToHome: () -> Unit
+    onBackToHome: () -> Unit,
+    gameRepository: GameRepository // NEW: Inject GameRepository
 ) {
     val validResult = when (result.uppercase(Locale.getDefault())) {
-        "VICTORY", "DEFEAT", "DRAW" -> result.uppercase(Locale.getDefault())
+        "VICTORY", "DEFEAT", "DRAW", "TIEMPO AGOTADO" -> result.uppercase(Locale.getDefault()) // Added "TIEMPO AGOTADO"
         else -> "DRAW"
     }
 
     val context = LocalContext.current
     var email by remember { mutableStateOf("") }
-    var logText by remember {
-        mutableStateOf(
-            buildString {
-                append("Jugador: $playerName\n")    // Aquí añado el nombre del jugador al log para hacerlo más fácil
-                append("Tablero: $boardSize\n")   // Aquí añado el tamaño del tablero
-                append("Vidas del jugador: $playerLives\n")
-                append("Vidas del enemigo: $enemyLives\n")
-                append(gameLog)
-            }
-        )
+    val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
+
+    val displayBoardSize = remember(boardSize) { "${boardSize}x${boardSize}" }
+
+
+    val fullGameLogText = remember(playerName, boardSize, playerLives, enemyLives, gameLog) {
+        buildString {
+            append("Jugador: $playerName\n")
+            append("Tablero: $displayBoardSize\n")
+            append("Vidas del jugador: $playerLives\n")
+            append("Vidas del enemigo: $enemyLives\n")
+            append("--- Registro de Acciones ---\n")
+            append(gameLog)
+        }
     }
+
     val currentDateTime = remember {
-        SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date())
+        SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date())
+    }
+
+
+    LaunchedEffect(Unit) {
+        coroutineScope.launch {
+            val newPartida = Partida(
+                id = UUID.randomUUID().toString(), // ID unica para la partida
+                alias = playerName,
+                fecha = currentDateTime,
+                resultado = validResult,
+                sizeTablero = boardSize,
+                dmgInfligido = if (validResult == "VICTORY") 100 else 0,
+                dmgRecibido = if (validResult == "DEFEAT") 100 else 0,
+                cartasEliminadas = 0,
+                logPartida = fullGameLogText // Guarda el log completo
+            )
+            gameRepository.insertPartida(newPartida)
+        }
     }
 
     BackHandler {
@@ -86,7 +114,7 @@ fun ResultsScreen(
                         Column(
                             modifier = Modifier
                                 .weight(1f)
-                                .verticalScroll(rememberScrollState()),
+                                .verticalScroll(scrollState), // Use the remembered scroll state
                             verticalArrangement = Arrangement.Center,
                             horizontalAlignment = Alignment.Start
                         ) {
@@ -94,19 +122,27 @@ fun ResultsScreen(
                             Spacer(Modifier.height(16.dp))
                             ReadOnlyField("Día y hora", currentDateTime)
                             Spacer(Modifier.height(12.dp))
-                            // Gestión del log
-                            OutlinedTextField(
-                                value = logText,
-                                onValueChange = { logText = it },
-                                label = { Text("Valores del Log", color = Color.White) },
+                            // Display the game log in a scrollable Text, not an editable TextField
+                            Text(
+                                text = "Valores del Log:",
+                                style = MaterialTheme.typography.labelLarge.copy(color = Color.White),
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+                            Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(150.dp),
-                                textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White),
-                                singleLine = false,
-                                maxLines = 8,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
-                            )
+                                    .heightIn(min = 100.dp, max = 200.dp) // Adjust max height as needed
+                                    .border(1.dp, Color.Gray, RoundedCornerShape(8.dp))
+                                    .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                                    .padding(8.dp)
+                                    .verticalScroll(rememberScrollState()) // Separate scroll for log
+                            ) {
+                                Text(
+                                    text = fullGameLogText,
+                                    style = MaterialTheme.typography.bodyMedium.copy(color = Color.White)
+                                )
+                            }
+
                             Spacer(Modifier.height(12.dp))
                             OutlinedTextField(
                                 value = email,
@@ -114,7 +150,14 @@ fun ResultsScreen(
                                 label = { Text("E-mail destinatario", color = Color.White) },
                                 modifier = Modifier.fillMaxWidth(),
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                                textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White)
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color.White,
+                                    unfocusedBorderColor = Color.Gray,
+                                    focusedLabelColor = Color.White,
+                                    unfocusedLabelColor = Color.Gray,
+                                    cursorColor = Color.White
+                                )
                             )
                         }
                         Column(
@@ -126,11 +169,11 @@ fun ResultsScreen(
                         ) {
                             SendEmailButton(
                                 email = email,
-                                result = result,
+                                result = validResult, // Use validResult
                                 dateTime = currentDateTime,
                                 playerName = playerName,
-                                boardSize = boardSize,
-                                gameLog = logText,
+                                boardSize = displayBoardSize,
+                                gameLog = fullGameLogText, // Send the full log
                                 context = context
                             )
                             Spacer(Modifier.height(16.dp))
@@ -144,20 +187,35 @@ fun ResultsScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(30.dp)
-                            .verticalScroll(rememberScrollState()),
+                            .verticalScroll(scrollState), // Use the remembered scroll state
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        ResultHeader(result)
+                        ResultHeader(validResult) // Use validResult
                         Spacer(Modifier.height(20.dp))
                         ReadOnlyField("Día y hora", currentDateTime)
                         Spacer(Modifier.height(16.dp))
 
-                        // Campo del log
-                        ReadOnlyField(
-                            labelText = "Valores del Log",
-                            value = logText
+                        // Display the game log in a scrollable Text, not an editable TextField
+                        Text(
+                            text = "Valores del Log:",
+                            style = MaterialTheme.typography.labelLarge.copy(color = Color.White),
+                            modifier = Modifier.padding(bottom = 4.dp)
                         )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 150.dp, max = 250.dp) // Adjust heights for portrait
+                                .border(1.dp, Color.Gray, RoundedCornerShape(8.dp))
+                                .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                                .padding(8.dp)
+                                .verticalScroll(rememberScrollState()) // Separate scroll for log
+                        ) {
+                            Text(
+                                text = fullGameLogText,
+                                style = MaterialTheme.typography.bodyMedium.copy(color = Color.White)
+                            )
+                        }
 
                         Spacer(Modifier.height(16.dp))
                         OutlinedTextField(
@@ -166,16 +224,23 @@ fun ResultsScreen(
                             label = { Text("E-mail destinatario", color = Color.White) },
                             modifier = Modifier.fillMaxWidth(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White)
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color.White,
+                                unfocusedBorderColor = Color.Gray,
+                                focusedLabelColor = Color.White,
+                                unfocusedLabelColor = Color.Gray,
+                                cursorColor = Color.White
+                            )
                         )
                         Spacer(Modifier.height(24.dp))
                         SendEmailButton(
                             email = email,
-                            result = result,
+                            result = validResult, // Use validResult
                             dateTime = currentDateTime,
                             playerName = playerName,
-                            boardSize = boardSize,
-                            gameLog = logText,
+                            boardSize = displayBoardSize,
+                            gameLog = fullGameLogText, // Send the full log
                             context = context
                         )
                         Spacer(Modifier.height(16.dp))
@@ -195,7 +260,9 @@ private fun ResultHeader(result: String) {
         text = when (result) {
             "VICTORY" -> "¡Victoria!"
             "DEFEAT"  -> "Derrota"
-            else      -> "Empate"
+            "DRAW"    -> "Empate"
+            "TIEMPO AGOTADO" -> "Tiempo Agotado" // Added
+            else      -> "Resultado Desconocido" // Fallback
         },
         style = MaterialTheme.typography.headlineLarge.copy(
             fontFamily = FontFamily.SansSerif,
@@ -212,7 +279,16 @@ private fun ReadOnlyField(labelText: String, value: String) {
         label = { Text(labelText, color = Color.White) },
         readOnly = true,
         modifier = Modifier.fillMaxWidth(),
-        textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White)
+        textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = Color.White,
+            unfocusedBorderColor = Color.Gray,
+            focusedLabelColor = Color.White,
+            unfocusedLabelColor = Color.Gray,
+            disabledBorderColor = Color.Gray, // For readOnly fields
+            disabledLabelColor = Color.Gray,
+            disabledTextColor = Color.White
+        )
     )
 }
 
@@ -233,32 +309,45 @@ private fun SendEmailButton(
                     when (result) {
                         "VICTORY" -> "Victoria"
                         "DEFEAT"  -> "Derrota"
-                        else      -> "Empate"
+                        "DRAW"    -> "Empate"
+                        "TIEMPO AGOTADO" -> "Tiempo Agotado"
+                        else      -> "Desconocido"
                     }
                 } – $dateTime"
             )
             val bodyText = buildString {
-                append("Fecha y hora: $dateTime\n\n")
+                append("Fecha y hora: $dateTime\n")
+                append("Jugador: $playerName\n")
+                append("Tablero: $boardSize\n\n")
                 append("Log de la partida:\n$gameLog")
-                append("\nResultado: ${
+                append("\n\nResultado Final: ${
                     when (result) {
                         "VICTORY" -> "¡Victoria!"
                         "DEFEAT"  -> "Derrota"
-                        else      -> "Empate"
+                        "DRAW"    -> "Empate"
+                        "TIEMPO AGOTADO" -> "Tiempo Agotado"
+                        else      -> "Desconocido"
                     }
                 }\n")
             }
             val body = Uri.encode(bodyText)
             val mailUri = Uri.parse("mailto:$email?subject=$subject&body=$body")
             val intent = Intent(Intent.ACTION_SENDTO, mailUri)
-            context.startActivity(intent)
+            // Ensure the intent can be resolved to prevent crashes if no email app is found
+            if (intent.resolveActivity(context.packageManager) != null) {
+                context.startActivity(intent)
+            } else {
+                // Optionally show a Toast or Snackbar if no email app is available
+                // Toast.makeText(context, "No hay aplicación de correo disponible.", Toast.LENGTH_SHORT).show()
+            }
         },
         modifier = Modifier
             .fillMaxWidth()
             .height(50.dp)
-            .border(3.dp, Color.Black, RoundedCornerShape(12.dp)),
+            .border(3.dp, Color.Black, RoundedCornerShape(12.dp))
+            .background(Color(0xFFA0522D), RoundedCornerShape(12.dp)), // Added background color here
         colors = ButtonDefaults.buttonColors(
-            containerColor = Color(0xFFA0522D),
+            containerColor = Color.Transparent, // Transparent because background is already set
             contentColor = Color.White
         )
     ) {
@@ -276,9 +365,10 @@ private fun ActionButton(text: String, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .height(50.dp)
-            .border(3.dp, Color.Black, RoundedCornerShape(12.dp)),
+            .border(3.dp, Color.Black, RoundedCornerShape(12.dp))
+            .background(Color(0xFFA0522D), RoundedCornerShape(12.dp)), // Added background color here
         colors = ButtonDefaults.buttonColors(
-            containerColor = Color(0xFFA0522D),
+            containerColor = Color.Transparent, // Transparent because background is already set
             contentColor = Color.White
         )
     ) {

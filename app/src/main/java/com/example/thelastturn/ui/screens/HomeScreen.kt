@@ -18,10 +18,13 @@ import androidx.compose.ui.unit.dp
 fun HomeScreen(
     onStartGame: () -> Unit,
     onHelp: () -> Unit,
+    onShowPreferences: () -> Unit, // New callback for preferences
+    onShowPastGames: () -> Unit,   // New callback for past games
     onExit: () -> Unit
 ) {
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val isTablet = isTablet() // Reusing the isTablet helper function
 
     Box(
         modifier = Modifier
@@ -33,7 +36,9 @@ fun HomeScreen(
             ),
         contentAlignment = Alignment.Center
     ) {
-        if (isLandscape) {
+        // Decide layout based on orientation and device type
+        if (isLandscape && isTablet) {
+            // Tablet landscape: Title on left, buttons on right
             Row(
                 modifier = Modifier
                     .fillMaxSize()
@@ -54,7 +59,7 @@ fun HomeScreen(
                     )
                 }
 
-                // Colocación de botones a la derecha
+                // Buttons on the right side
                 Column(
                     modifier = Modifier
                         .weight(1f)
@@ -62,62 +67,18 @@ fun HomeScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    val buttonModifier = Modifier
-                        .fillMaxWidth(0.8f)
-                        .height(60.dp)
-                        .border(3.dp, Color.Black, RoundedCornerShape(12.dp))
-                        .background(Color(0xFFA0522D), RoundedCornerShape(12.dp))
-
-                    Button(
-                        onClick = onStartGame,
-                        modifier = buttonModifier,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.Transparent,
-                            contentColor = Color.White
-                        )
-                    ) {
-                        Text(
-                            text = "Empezar Partida",
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif
-                            )
-                        )
-                    }
-
-                    Button(
-                        onClick = onHelp,
-                        modifier = buttonModifier,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.Transparent,
-                            contentColor = Color.White
-                        )
-                    ) {
-                        Text(
-                            text = "Ayuda",
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif
-                            )
-                        )
-                    }
-
-                    Button(
-                        onClick = onExit,
-                        modifier = buttonModifier,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.Transparent,
-                            contentColor = Color.White
-                        )
-                    ) {
-                        Text(
-                            text = "Salir",
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif
-                            )
-                        )
-                    }
+                    HomeButtons(
+                        onStartGame = onStartGame,
+                        onHelp = onHelp,
+                        onShowPreferences = onShowPreferences,
+                        onShowPastGames = onShowPastGames,
+                        onExit = onExit
+                    )
                 }
             }
         } else {
+            // Portrait orientation (smartphones and tablets) and Smartphone Landscape:
+            // Title on top, buttons below.
             Column(
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -125,7 +86,6 @@ fun HomeScreen(
                     .fillMaxSize()
                     .padding(30.dp)
             ) {
-                // Título del juego
                 Text(
                     text = "The Last Turn",
                     style = MaterialTheme.typography.headlineLarge.copy(
@@ -136,61 +96,113 @@ fun HomeScreen(
 
                 Spacer(modifier = Modifier.height(80.dp))
 
-                val buttonModifier = Modifier
-                    .padding(8.dp)
-                    .height(70.dp)
-                    .fillMaxWidth(0.8f)
-                    .border(3.dp, Color.Black, RoundedCornerShape(12.dp))
-                    .background(Color(0xFFA0522D), RoundedCornerShape(12.dp))
-
-                Button(
-                    onClick = onStartGame,
-                    modifier = buttonModifier,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.Transparent,
-                        contentColor = Color.White
-                    )
-                ) {
-                    Text(
-                        text = "Empezar Partida",
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif
-                        )
-                    )
-                }
-
-                Button(
-                    onClick = onHelp,
-                    modifier = buttonModifier,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.Transparent,
-                        contentColor = Color.White
-                    )
-                ) {
-                    Text(
-                        text = "Ayuda",
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif
-                        )
-                    )
-                }
-
-                Button(
-                    onClick = onExit,
-                    modifier = buttonModifier,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.Transparent,
-                        contentColor = Color.White
-                    )
-                ) {
-                    Text(
-                        text = "Salir",
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif
-                        )
-                    )
-                }
+                HomeButtons(
+                    onStartGame = onStartGame,
+                    onHelp = onHelp,
+                    onShowPreferences = onShowPreferences,
+                    onShowPastGames = onShowPastGames,
+                    onExit = onExit
+                )
             }
         }
+    }
+}
+
+/**
+ * A reusable composable for the main menu buttons.
+ */
+@Composable
+private fun HomeButtons(
+    onStartGame: () -> Unit,
+    onHelp: () -> Unit,
+    onShowPreferences: () -> Unit,
+    onShowPastGames: () -> Unit,
+    onExit: () -> Unit
+) {
+    val buttonModifier = Modifier
+        .padding(8.dp)
+        .height(70.dp)
+        .fillMaxWidth(0.8f)
+        .border(3.dp, Color.Black, RoundedCornerShape(12.dp))
+        .background(Color(0xFFA0522D), RoundedCornerShape(12.dp))
+
+    Button(
+        onClick = onStartGame,
+        modifier = buttonModifier,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Color.Transparent,
+            contentColor = Color.White
+        )
+    ) {
+        Text(
+            text = "Empezar Partida",
+            style = MaterialTheme.typography.titleLarge.copy(
+                fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif
+            )
+        )
+    }
+
+    Button(
+        onClick = onShowPastGames, // New button for past games
+        modifier = buttonModifier,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Color.Transparent,
+            contentColor = Color.White
+        )
+    ) {
+        Text(
+            text = "Partidas Anteriores",
+            style = MaterialTheme.typography.titleLarge.copy(
+                fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif
+            )
+        )
+    }
+
+    Button(
+        onClick = onShowPreferences, // New button for preferences
+        modifier = buttonModifier,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Color.Transparent,
+            contentColor = Color.White
+        )
+    ) {
+        Text(
+            text = "Configuración",
+            style = MaterialTheme.typography.titleLarge.copy(
+                fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif
+            )
+        )
+    }
+
+    Button(
+        onClick = onHelp,
+        modifier = buttonModifier,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Color.Transparent,
+            contentColor = Color.White
+        )
+    ) {
+        Text(
+            text = "Ayuda",
+            style = MaterialTheme.typography.titleLarge.copy(
+                fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif
+            )
+        )
+    }
+
+    Button(
+        onClick = onExit,
+        modifier = buttonModifier,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Color.Transparent,
+            contentColor = Color.White
+        )
+    ) {
+        Text(
+            text = "Salir",
+            style = MaterialTheme.typography.titleLarge.copy(
+                fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif
+            )
+        )
     }
 }

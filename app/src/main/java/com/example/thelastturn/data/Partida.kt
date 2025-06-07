@@ -13,8 +13,9 @@ data class Partida(
     val alias: String,
     val fecha: String,
     val resultado: String,
-    val tamanoTablero: Int,
-    val danioInfligido: Int,
-    val danioRecibido: Int,
-    val cartasEliminadas: Int
+    val sizeTablero: Int,
+    val dmgInfligido: Int,
+    val dmgRecibido: Int,
+    val cartasEliminadas: Int,
+    val logPartida: String
 ) : Parcelable

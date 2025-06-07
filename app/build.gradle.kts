@@ -54,6 +54,7 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.navigation.runtime.ktx)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -62,6 +63,9 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 
+
+    implementation(libs.androidx.material3.window.size)
+
     //ADDED:
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.1")
@@ -69,6 +73,8 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.8.0")
     implementation("androidx.compose.runtime:runtime-livedata:1.4.3")
     implementation ("androidx.core:core-splashscreen:1.0.1")
+
+
 
     // DataStore
     implementation ("androidx.datastore:datastore-preferences:1.0.0")
