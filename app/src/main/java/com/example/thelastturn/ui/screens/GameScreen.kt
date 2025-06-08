@@ -2,14 +2,15 @@ package com.example.thelastturn.ui.screens
 
 import android.app.Application
 import android.content.res.Configuration
-import androidx.activity.compose.LocalActivity
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.Image
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -32,30 +33,26 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext // ¡Importación necesaria para LocalContext!
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalContext
+
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModelStoreOwner
+
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.thelastturn.data.AppDatabase // ¡Importación necesaria para la base de datos!
-import com.example.thelastturn.data.GameRepository // ¡Importación necesaria para el repositorio!
+import com.example.thelastturn.data.AppDatabase
+import com.example.thelastturn.data.GameRepository
 import com.example.thelastturn.model.BoardSlot
 import com.example.thelastturn.model.Card
 import com.example.thelastturn.model.PlayerTurn
 import com.example.thelastturn.viewmodel.GameViewModel
-import com.example.thelastturn.viewmodel.GameViewModelFactory // ¡Importación necesaria para la fábrica!
+import com.example.thelastturn.viewmodel.GameViewModelFactory
+import com.example.thelastturn.ui.components.isTabletDevice
 
-// Helper function to determine if the device is likely a tablet (based on screen width)
-@Composable
-fun isTablet(): Boolean {
-    val configuration = LocalConfiguration.current
-    // A common breakpoint for compact vs medium/expanded in Jetpack Compose's WindowSizeClasses
-    // is around 600dp. Devices wider than this are often considered tablets for UI purposes.
-    return configuration.screenWidthDp.dp >= 600.dp
-}
 
-// Helper function to check landscape orientation
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+
+
 @Composable
 fun isLandscape(): Boolean {
     return LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -63,202 +60,168 @@ fun isLandscape(): Boolean {
 
 @Composable
 fun GameScreen(onGameEnd: (String) -> Unit) {
-    // Obtener el contexto local y la instancia de Application
     val context = LocalContext.current
     val application = context.applicationContext as Application
 
-    // Obtener la instancia de la base de datos y el repositorio
-    // Usamos remember para que estas instancias se mantengan durante las recomposiciones
     val database = remember { AppDatabase.getDatabase(context) }
     val repository = remember { GameRepository(database.partidaDao()) }
 
-    // Crear la fábrica del ViewModel con las dependencias necesarias
     val factory = remember { GameViewModelFactory(application, repository) }
 
-    // Obtener la instancia del ViewModel, proporcionando la fábrica
-    val viewModel: GameViewModel =
-        viewModel(viewModelStoreOwner = LocalActivity.current as ViewModelStoreOwner, factory = factory)
+    val viewModel: GameViewModel = viewModel(factory = factory)
 
-    // Observe navigation events from ViewModel to trigger game end navigation
-    // viewModel.navigationEvent es State<String?>, por lo que .value es String?
     LaunchedEffect(viewModel.navigationEvent) {
-        viewModel.navigationEvent?.let { result -> // 'result' se infiere correctamente como String
-            onGameEnd(result) // Navigate to the game end screen
-            viewModel.resetNavigation() // Reset the event so it doesn't trigger again
+        viewModel.navigationEvent?.let { result ->
+            onGameEnd(result)
+            viewModel.resetNavigation()
         }
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF5F5DC)), // Light beige background for the game
+            .background(Color(0xFFF5F5DC)),
         contentAlignment = Alignment.Center
     ) {
-        if (isTablet()) {
-            // Tablet layout: Bi-panel, adapts to orientation
+        val isTablet = isTabletDevice()
+        val isLandscape = isLandscape()
+
+        if (isTablet) {
             TabletGameLayout(viewModel = viewModel)
         } else {
-            // Smartphone layout: Mono-panel
-            SmartphoneGameLayout(viewModel = viewModel)
+            if (isLandscape) {
+                SmartphoneLandscapeGameLayout(viewModel = viewModel)
+            } else {
+                SmartphonePortraitGameLayout(viewModel = viewModel)
+            }
         }
     }
 }
 
-/**
- * Composable for tablet-specific game layout (bi-panel).
- * It dynamically adjusts based on orientation (landscape or portrait).
- */
 @Composable
 private fun TabletGameLayout(viewModel: GameViewModel) {
-    if (isLandscape()) {
-        // Tablet Landscape: Game board on left (main content), Log on right (secondary content)
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Main Game Content (Board, Players, Hand, Timer) - occupies more space
-            Column(
-                modifier = Modifier.weight(2f), // Wider for game content
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                GameContent(viewModel = viewModel, modifier = Modifier.fillMaxSize())
-            }
-
-            // Secondary Panel: Game Log
-            Column(
-                modifier = Modifier
-                    .weight(1f) // Narrower for log
-                    .fillMaxHeight()
-                    .background(Color.White, RoundedCornerShape(8.dp))
-                    .border(1.dp, Color.LightGray, RoundedCornerShape(8.dp))
-                    .padding(8.dp)
-            ) {
-                GameLogDisplay(viewModel = viewModel)
-            }
-        }
-    } else {
-        // Tablet Portrait: Game board on top (main content), Log on bottom (secondary content)
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Sección principal del juego (izquierdado en horizontal)
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(8.dp),
+                .weight(2f)
+                .fillMaxHeight()
+                .verticalScroll(rememberScrollState()), // Usar scroll en Column para evitar LazyColumn si no es estrictamente necesario
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Main Game Content (Board, Players, Hand, Timer) - occupies more space
-            Column(
-                modifier = Modifier.weight(2f), // Taller for game content
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                GameContent(viewModel = viewModel, modifier = Modifier.fillMaxSize())
+            TimerDisplay(viewModel)
+            EnemyInfo(viewModel)
+            BoardSection(viewModel.enemySlots, false, viewModel)
+            PlayerInfo(viewModel)
+            BoardSection(viewModel.playerSlots, true, viewModel)
+            // Asegúrate de que playerHand tenga elementos antes de intentar acceder a .take(4)
+            PlayerHand(viewModel.playerHand.take(4), viewModel.selectedCard) { card ->
+                viewModel.selectCard(card)
             }
+        }
 
-            // Secondary Panel: Game Log
-            Column(
-                modifier = Modifier
-                    .weight(1f) // Shorter for log
-                    .fillMaxWidth()
-                    .background(Color.White, RoundedCornerShape(8.dp))
-                    .border(1.dp, Color.LightGray, RoundedCornerShape(8.dp))
-                    .padding(8.dp)
-            ) {
-                GameLogDisplay(viewModel = viewModel)
-            }
+        // Sección del log del juego (derecho en horizontal)
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .background(Color.White, RoundedCornerShape(8.dp))
+                .border(1.dp, Color.LightGray)
+                .padding(8.dp)
+        ) {
+            GameLogDisplay(viewModel) // Simplificado, ya que GameLogDisplay probablemente maneja su propio scroll si es necesario
         }
     }
 }
 
-/**
- * Composable for smartphone-specific game layout (mono-panel).
- * The log is not displayed here.
- */
+
 @Composable
-private fun SmartphoneGameLayout(viewModel: GameViewModel) {
-    // Smartphone: Always mono-panel, log is not shown.
+private fun SmartphonePortraitGameLayout(viewModel: GameViewModel) {
+    // SE ELIMINA EL SCROLL AQUI
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(8.dp)
-            .verticalScroll(rememberScrollState()), // Make it scrollable for smaller screens
+            .padding(8.dp), // Eliminado .verticalScroll(rememberScrollState())
         verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        GameContent(viewModel = viewModel, modifier = Modifier.fillMaxWidth())
-    }
-}
-
-/**
- * Contains the core game UI elements (Timer, Player/Enemy Info, Board, Player Hand).
- * This composable can be reused for both tablet and smartphone layouts.
- */
-@Composable
-private fun GameContent(viewModel: GameViewModel, modifier: Modifier = Modifier) {
-    val configuration = LocalConfiguration.current
-    val isLandscapeOrientation = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val isTabletDevice = isTablet() // Determine if it's a tablet for specific layout adjustments
-
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceAround // Adjust as needed for spacing
-    ) {
         TimerDisplay(viewModel)
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Arrange player/enemy info and board based on orientation or device type
-        // This condition creates the side-by-side layout for board sections only in tablet landscape
-        if (isLandscapeOrientation && isTabletDevice) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceAround,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    EnemyInfo(viewModel)
-                    BoardSection(slots = viewModel.enemySlots, isPlayer = false, viewModel = viewModel, cardSpacing = 8.dp)
-                }
-                Spacer(Modifier.width(16.dp))
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    PlayerInfo(viewModel)
-                    BoardSection(slots = viewModel.playerSlots, isPlayer = true, viewModel = viewModel, cardSpacing = 8.dp)
-                }
-            }
-        } else { // Default layout for portrait and smartphones (top to bottom)
-            EnemyInfo(viewModel)
-            BoardSection(slots = viewModel.enemySlots, isPlayer = false, viewModel = viewModel)
-            Spacer(modifier = Modifier.height(16.dp))
-            PlayerInfo(viewModel)
-            BoardSection(slots = viewModel.playerSlots, isPlayer = true, viewModel = viewModel)
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
+        EnemyInfo(viewModel)
+        BoardSection(slots = viewModel.enemySlots, isPlayer = false, viewModel = viewModel)
+        BoardSection(slots = viewModel.playerSlots, isPlayer = true, viewModel = viewModel)
+        PlayerInfo(viewModel)
         PlayerHand(
-            cards = viewModel.playerHand.take(4), // Display up to 4 cards in hand
+            cards = viewModel.playerHand.take(4),
             selectedCard = viewModel.selectedCard,
             onCardSelected = { viewModel.selectCard(it) }
         )
     }
 }
 
-/**
- * Displays the game log entries.
- */
+@Composable
+private fun SmartphoneLandscapeGameLayout(viewModel: GameViewModel) {
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // SE ELIMINA EL SCROLL AQUI
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(), // Eliminado .verticalScroll(rememberScrollState())
+            verticalArrangement = Arrangement.SpaceAround,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            TimerDisplay(viewModel)
+            EnemyInfo(viewModel)
+            PlayerInfo(viewModel)
+            PlayerHand(
+                cards = viewModel.playerHand.take(4),
+                selectedCard = viewModel.selectedCard,
+                onCardSelected = { viewModel.selectCard(it) }
+            )
+        }
+
+        // SE ELIMINA EL SCROLL AQUI
+        Column(
+            modifier = Modifier
+                .weight(2f)
+                .fillMaxHeight(), // Eliminado .verticalScroll(rememberScrollState())
+            verticalArrangement = Arrangement.SpaceAround,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("Enemigo:", style = MaterialTheme.typography.titleMedium)
+            BoardSection(
+                slots = viewModel.enemySlots,
+                isPlayer = false,
+                viewModel = viewModel,
+                cardSpacing = 4.dp
+            )
+            Text("Jugador:", style = MaterialTheme.typography.titleMedium)
+            BoardSection(
+                slots = viewModel.playerSlots,
+                isPlayer = true,
+                viewModel = viewModel,
+                cardSpacing = 4.dp
+            )
+        }
+    }
+}
+
 @Composable
 private fun GameLogDisplay(viewModel: GameViewModel) {
     val gameLog by viewModel.gameLog.collectAsState()
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
             .padding(4.dp)
     ) {
         Text("Registro de Partida", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
@@ -266,15 +229,18 @@ private fun GameLogDisplay(viewModel: GameViewModel) {
         if (gameLog.isBlank()) {
             Text("El log aparecerá aquí a medida que juegues.", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
         } else {
-            // Display the log content
-            Text(gameLog, style = MaterialTheme.typography.bodySmall, color = Color.DarkGray)
+            Text(
+                gameLog,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.DarkGray,
+                modifier = Modifier.verticalScroll(rememberScrollState())
+            )
         }
     }
 }
 
 @Composable
 private fun PlayerInfo(viewModel: GameViewModel) {
-    // Observe the player alias from the ViewModel's Flow
     val playerAlias by viewModel.playerAlias.collectAsState()
 
     Row(
@@ -282,14 +248,13 @@ private fun PlayerInfo(viewModel: GameViewModel) {
             .fillMaxWidth()
             .padding(8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically // Align items vertically in center
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(playerAlias, style = MaterialTheme.typography.bodyLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) // Display observed alias
+            Text(playerAlias, style = MaterialTheme.typography.bodyLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
             Spacer(modifier = Modifier.width(8.dp))
             HealthIcons(viewModel.player.currentHits)
         }
-        // Ensure that `currentTurn` is accessed with `.value`
         Text("Turno: ${viewModel.currentTurn.name}", style = MaterialTheme.typography.bodyMedium)
     }
 }
@@ -334,32 +299,34 @@ private fun BoardSection(
     slots: List<BoardSlot>,
     isPlayer: Boolean,
     viewModel: GameViewModel,
-    cardSpacing: Dp = 14.dp
+    cardSpacing: Dp = 14.dp,
+    modifier: Modifier = Modifier
 ) {
     BoxWithConstraints(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp)
     ) {
         val slotCount = slots.size.coerceAtLeast(1)
-        // Calculate max width for slots considering spacing
-        val maxSlotWidth = (maxWidth - (cardSpacing * (slotCount - 1))) / slotCount
+        val totalSpacing = cardSpacing * (slotCount - 1)
+        val maxSlotWidth = (maxWidth - totalSpacing) / slotCount
 
-        // Ensure slot width is not too small or too large, provide a reasonable range
-        val idealSlotWidth = 73.dp // Original ideal width
-        val calculatedSlotWidth = maxSlotWidth.coerceIn(50.dp, 100.dp) // Constrain size
+        val minCardWidth = 55.dp
+        val maxCardWidth = 90.dp
+
+        val calculatedSlotWidth = maxSlotWidth.coerceIn(minCardWidth, maxCardWidth)
 
         LazyRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(cardSpacing),
-            verticalAlignment = Alignment.CenterVertically // Center cards vertically in the row
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            items(slots, key = { it.id }) { slot -> // Added key for better performance in LazyRow
+            items(slots, key = { it.id }) { slot ->
                 BoardSlotUI(
                     slot = slot,
                     isPlayer = isPlayer,
                     viewModel = viewModel,
-                    width = calculatedSlotWidth, // Use calculated width
+                    width = calculatedSlotWidth,
                     height = 120.dp
                 )
             }
@@ -375,7 +342,7 @@ private fun BoardSlotUI(
     width: Dp = 73.dp,
     height: Dp = 120.dp
 ) {
-    val slotColor = if (isPlayer) Color(0xFF2196F3) else Color(0xFFF44336) // Blue for player, Red for enemy
+    val slotColor = if (isPlayer) Color(0xFF2196F3) else Color(0xFFF44336)
 
     Box(
         modifier = Modifier
@@ -383,18 +350,15 @@ private fun BoardSlotUI(
             .height(height)
             .border(1.5.dp, slotColor, RoundedCornerShape(8.dp))
             .clickable(enabled = isPlayer && viewModel.currentTurn == PlayerTurn.PLAYER && viewModel.selectedCard != null) {
-                // Only allow placing card if it's player's turn and a card is selected
                 viewModel.placeCard(slot.id)
             }
             .background(slotColor.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
             .clip(RoundedCornerShape(8.dp)),
         contentAlignment = Alignment.Center
     ) {
-        // Animate visibility of the card within the slot
         AnimatedVisibility(visible = slot.card != null) {
             slot.card?.let { CardInSlot(card = it) }
         }
-        // Show placeholder if slot is empty
         if (slot.card == null) {
             SlotPlaceholder(color = slotColor)
         }
@@ -404,20 +368,24 @@ private fun BoardSlotUI(
 @Composable
 private fun CardInSlot(card: Card) {
     Column(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .width(60.dp)
+            .height(120.dp),
         verticalArrangement = Arrangement.SpaceBetween,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Image(
-            painter = painterResource(id = card.imageRes),
+        AsyncImage(
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(card.imageRes)
+                .build(),
             contentDescription = card.name,
             modifier = Modifier
                 .size(60.dp)
                 .aspectRatio(1f)
-                .clip(RoundedCornerShape(8.dp)), // Clip image for rounded corners
-            contentScale = ContentScale.Crop
+                .clip(RoundedCornerShape(8.dp)),
+            contentScale = ContentScale.Fit
         )
-        Spacer(modifier = Modifier.height(4.5.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         HealthBar(health = card.health, maxHealth = card.maxHealth)
         Row(
             modifier = Modifier
@@ -426,15 +394,13 @@ private fun CardInSlot(card: Card) {
                 .padding(4.dp),
             horizontalArrangement = Arrangement.SpaceAround
         ) {
-            // Damage icon and text
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("⚔", style = MaterialTheme.typography.bodySmall, color = Color.White) // Changed text color for better contrast
-                Text("${card.damage}", style = MaterialTheme.typography.bodyMedium, color = Color.White) // Changed text color
+                Text("⚔", style = MaterialTheme.typography.bodySmall, color = Color.White)
+                Text("${card.damage}", style = MaterialTheme.typography.bodyMedium, color = Color.White)
             }
-            // Health icon and text
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("❤", style = MaterialTheme.typography.bodySmall, color = Color.White) // Changed text color
-                Text("${card.health}/${card.maxHealth}", style = MaterialTheme.typography.bodyMedium, color = Color.White) // Changed text color
+                Text("❤", style = MaterialTheme.typography.bodySmall, color = Color.White)
+                Text("${card.health}/${card.maxHealth}", style = MaterialTheme.typography.bodyMedium, color = Color.White)
             }
         }
     }
@@ -443,8 +409,7 @@ private fun CardInSlot(card: Card) {
 @Composable
 private fun HealthBar(health: Int, maxHealth: Int) {
     val animatedHealth by animateFloatAsState(
-        targetValue = health.toFloat(),
-        label = "HealthAnimation" // Added label for animation
+        targetValue = health.toFloat(), label = "health animation"
     )
     Box(
         modifier = Modifier
@@ -493,21 +458,20 @@ private fun PlayerHand(
             .shadow(elevation = 10.dp, shape = RoundedCornerShape(10.dp)),
         shape = RoundedCornerShape(10.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFFD2B48C), // A warm, sandy brown color
-            contentColor   = Color.Black
+            containerColor = Color(0xFFD2B48C),
+            contentColor = Color.Black
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
     ) {
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.padding(10.dp),
-            verticalAlignment = Alignment.CenterVertically // Center cards vertically within the hand
+            modifier = Modifier.padding(10.dp)
         ) {
-            items(cards, key = { it.id }) { card -> // Use key for better performance in LazyRow
+            items(cards) { card ->
                 CardUI(
-                    card       = card,
+                    card = card,
                     isSelected = card.id == selectedCard?.id,
-                    onClick    = { onCardSelected(card) }
+                    onClick = { onCardSelected(card) }
                 )
             }
         }
@@ -520,26 +484,22 @@ private fun CardUI(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val scale by animateFloatAsState(
-        targetValue = if (isSelected) 1.1f else 1f,
-        label = "CardScaleAnimation" // Added label for animation
-    )
+    val scale by animateFloatAsState(if (isSelected) 1.1f else 1f, label = "card selection scale")
 
     Box(
         modifier = Modifier
-            .graphicsLayer(scaleX = scale, scaleY = scale) // Apply scale transform
+            .graphicsLayer(scaleX = scale, scaleY = scale)
             .width(80.dp)
             .height(120.dp)
             .border(
-                width = 3.dp, // Slightly thicker border for selected card
+                width = 2.dp,
                 color = if (isSelected) Color.Green else Color.Gray,
                 shape = RoundedCornerShape(12.dp)
             )
             .clickable(onClick = onClick)
             .background(Color.White, RoundedCornerShape(12.dp))
-            .clip(RoundedCornerShape(12.dp)) // Clip content to rounded corners
     ) {
-        CardInSlot(card = card) // Reuse CardInSlot for consistency
+        CardInSlot(card = card)
     }
 }
 
@@ -548,13 +508,13 @@ private fun TimerDisplay(viewModel: GameViewModel) {
     Card(
         modifier = Modifier
             .padding(4.dp)
-            .background(Color.Transparent), // Set background transparent if desired
+            .background(Color.Transparent),
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xAAFFFFFF).copy(alpha = 0.9f), // Semi-transparent white
-            contentColor   = Color.Black
+            containerColor = Color(0xAAFFFFFF).copy(alpha = 0.9f),
+            contentColor = Color.Black
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp) // No shadow if elevation is 0
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
@@ -562,12 +522,12 @@ private fun TimerDisplay(viewModel: GameViewModel) {
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("Tiempo total", style = MaterialTheme.typography.labelSmall)
-                Text("${viewModel.remainingTotalTime}s", style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                Text("${viewModel.remainingTotalTime}s", style = MaterialTheme.typography.titleMedium)
             }
             Spacer(Modifier.width(24.dp))
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("Tiempo por acción", style = MaterialTheme.typography.labelSmall)
-                Text("${viewModel.remainingActionTime}s", style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                Text("${viewModel.remainingActionTime}s", style = MaterialTheme.typography.titleMedium)
             }
         }
     }

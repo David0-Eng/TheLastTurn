@@ -1,7 +1,7 @@
 package com.example.thelastturn.ui.screens
 
 import android.content.Intent
-import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,9 +20,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import com.example.thelastturn.data.GameRepository // Import your GameRepository
-import com.example.thelastturn.data.Partida // Import your Partida data class
-import kotlinx.coroutines.launch // Needed for coroutine scope
+import com.example.thelastturn.data.GameRepository
+import com.example.thelastturn.ui.components.AppActionButton
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -34,64 +33,90 @@ fun ResultsScreen(
     gameLog: String,
     playerLives: Int,
     enemyLives: Int,
-    onRestart: () -> Unit,
+    onStartNewGame: () -> Unit,
     onExit: () -> Unit,
     onBackToHome: () -> Unit,
-    gameRepository: GameRepository // NEW: Inject GameRepository
+    gameRepository: GameRepository
 ) {
+    // Normaliza el resultado para las comparaciones y display
     val validResult = when (result.uppercase(Locale.getDefault())) {
-        "VICTORY", "DEFEAT", "DRAW", "TIEMPO AGOTADO" -> result.uppercase(Locale.getDefault()) // Added "TIEMPO AGOTADO"
-        else -> "DRAW"
+        "VICTORY", "DEFEAT", "DRAW", "TIEMPO AGOTADO" -> result.uppercase(Locale.getDefault())
+        else -> "DRAW" // Valor por defecto si no es reconocido
     }
 
     val context = LocalContext.current
     var email by remember { mutableStateOf("") }
     val scrollState = rememberScrollState()
-    val coroutineScope = rememberCoroutineScope()
 
-    val displayBoardSize = remember(boardSize) { "${boardSize}x${boardSize}" }
+    val displayBoardSize = "${boardSize}x$boardSize"
 
-
-    val fullGameLogText = remember(playerName, boardSize, playerLives, enemyLives, gameLog) {
-        buildString {
-            append("Jugador: $playerName\n")
-            append("Tablero: $displayBoardSize\n")
-            append("Vidas del jugador: $playerLives\n")
-            append("Vidas del enemigo: $enemyLives\n")
-            append("--- Registro de Acciones ---\n")
-            append(gameLog)
-        }
+    // Construye el texto completo del log para mostrarlo
+    val fullGameLogText = buildString {
+        append("Jugador: $playerName\n")
+        append("Tablero: $displayBoardSize\n")
+        append("Vidas del jugador: $playerLives\n")
+        append("Vidas del enemigo: $enemyLives\n")
+        append("--- Registro de Acciones ---\n")
+        append(gameLog)
     }
 
+    // Obtiene la fecha y hora actuales para el registro
     val currentDateTime = remember {
         SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date())
     }
 
+    // Maneja el botón de retroceso del sistema para volver a la pantalla de inicio
+    BackHandler { onBackToHome() }
 
-    LaunchedEffect(Unit) {
-        coroutineScope.launch {
-            val newPartida = Partida(
-                id = UUID.randomUUID().toString(), // ID unica para la partida
-                alias = playerName,
-                fecha = currentDateTime,
-                resultado = validResult,
-                sizeTablero = boardSize,
-                dmgInfligido = if (validResult == "VICTORY") 100 else 0,
-                dmgRecibido = if (validResult == "DEFEAT") 100 else 0,
-                cartasEliminadas = 0,
-                logPartida = fullGameLogText // Guarda el log completo
-            )
-            gameRepository.insertPartida(newPartida)
+    // Función para enviar el email con los resultados
+    val sendEmail = {
+        val subject = "Resultados TheLastTurn: ${
+            when (validResult) {
+                "VICTORY" -> "Victoria"
+                "DEFEAT" -> "Derrota"
+                "DRAW" -> "Empate"
+                "TIEMPO AGOTADO" -> "Tiempo Agotado"
+                else -> "Desconocido"
+            }
+        } – $currentDateTime"
+
+        val bodyText = buildString {
+            append("Fecha y hora: $currentDateTime\n")
+            append("Jugador: $playerName\n")
+            append("Tablero: $displayBoardSize\n\n")
+            append("Log de la partida:\n$fullGameLogText")
+            append("\n\nResultado Final: ${
+                when (validResult) {
+                    "VICTORY" -> "¡Victoria!"
+                    "DEFEAT" -> "Derrota"
+                    "DRAW" -> "Empate"
+                    "TIEMPO AGOTADO" -> "Tiempo Agotado"
+                    else -> "Desconocido"
+                }
+            }\n")
         }
-    }
 
-    BackHandler {
-        onBackToHome()
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "message/rfc822"
+            putExtra(Intent.EXTRA_EMAIL, arrayOf(email))
+            putExtra(Intent.EXTRA_SUBJECT, subject)
+            putExtra(Intent.EXTRA_TEXT, bodyText)
+        }
+
+        try {
+            context.startActivity(Intent.createChooser(intent, "Enviar correo usando..."))
+        } catch (e: Exception) {
+            Toast.makeText(
+                context,
+                "No se encontró una aplicación de correo compatible.",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
     }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = Color(0xFF8B4513)
+        color = Color(0xFF8B4513) // Color de fondo si el gradiente falla o no cubre
     ) {
         Box(
             modifier = Modifier
@@ -104,6 +129,7 @@ fun ResultsScreen(
         ) {
             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                 val isLandscape = maxWidth > maxHeight
+
                 if (isLandscape) {
                     Row(
                         modifier = Modifier
@@ -114,7 +140,7 @@ fun ResultsScreen(
                         Column(
                             modifier = Modifier
                                 .weight(1f)
-                                .verticalScroll(scrollState), // Use the remembered scroll state
+                                .verticalScroll(scrollState),
                             verticalArrangement = Arrangement.Center,
                             horizontalAlignment = Alignment.Start
                         ) {
@@ -122,7 +148,6 @@ fun ResultsScreen(
                             Spacer(Modifier.height(16.dp))
                             ReadOnlyField("Día y hora", currentDateTime)
                             Spacer(Modifier.height(12.dp))
-                            // Display the game log in a scrollable Text, not an editable TextField
                             Text(
                                 text = "Valores del Log:",
                                 style = MaterialTheme.typography.labelLarge.copy(color = Color.White),
@@ -131,11 +156,11 @@ fun ResultsScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .heightIn(min = 100.dp, max = 200.dp) // Adjust max height as needed
+                                    .heightIn(min = 100.dp, max = 200.dp)
                                     .border(1.dp, Color.Gray, RoundedCornerShape(8.dp))
                                     .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
                                     .padding(8.dp)
-                                    .verticalScroll(rememberScrollState()) // Separate scroll for log
+                                    .verticalScroll(rememberScrollState())
                             ) {
                                 Text(
                                     text = fullGameLogText,
@@ -160,6 +185,7 @@ fun ResultsScreen(
                                 )
                             )
                         }
+
                         Column(
                             modifier = Modifier
                                 .weight(1f)
@@ -167,36 +193,28 @@ fun ResultsScreen(
                             verticalArrangement = Arrangement.Center,
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            SendEmailButton(
-                                email = email,
-                                result = validResult, // Use validResult
-                                dateTime = currentDateTime,
-                                playerName = playerName,
-                                boardSize = displayBoardSize,
-                                gameLog = fullGameLogText, // Send the full log
-                                context = context
-                            )
+                            AppActionButton("Enviar e-mail", onClick = sendEmail, enabled = email.isNotBlank())
                             Spacer(Modifier.height(16.dp))
-                            ActionButton("Nueva partida", onRestart)
+                            AppActionButton("Nueva partida", onStartNewGame)
                             Spacer(Modifier.height(16.dp))
-                            ActionButton("Salir", onExit)
+                            AppActionButton("Volver al inicio", onBackToHome)
+                            Spacer(Modifier.height(16.dp))
+                            AppActionButton("Salir", onExit)
                         }
                     }
-                } else {
+                } else { // Orientación Portrait
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(30.dp)
-                            .verticalScroll(scrollState), // Use the remembered scroll state
+                            .verticalScroll(scrollState),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        ResultHeader(validResult) // Use validResult
+                        ResultHeader(validResult)
                         Spacer(Modifier.height(20.dp))
                         ReadOnlyField("Día y hora", currentDateTime)
                         Spacer(Modifier.height(16.dp))
-
-                        // Display the game log in a scrollable Text, not an editable TextField
                         Text(
                             text = "Valores del Log:",
                             style = MaterialTheme.typography.labelLarge.copy(color = Color.White),
@@ -205,11 +223,11 @@ fun ResultsScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(min = 150.dp, max = 250.dp) // Adjust heights for portrait
+                                .heightIn(min = 150.dp, max = 250.dp)
                                 .border(1.dp, Color.Gray, RoundedCornerShape(8.dp))
                                 .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
                                 .padding(8.dp)
-                                .verticalScroll(rememberScrollState()) // Separate scroll for log
+                                .verticalScroll(rememberScrollState())
                         ) {
                             Text(
                                 text = fullGameLogText,
@@ -233,20 +251,15 @@ fun ResultsScreen(
                                 cursorColor = Color.White
                             )
                         )
+
                         Spacer(Modifier.height(24.dp))
-                        SendEmailButton(
-                            email = email,
-                            result = validResult, // Use validResult
-                            dateTime = currentDateTime,
-                            playerName = playerName,
-                            boardSize = displayBoardSize,
-                            gameLog = fullGameLogText, // Send the full log
-                            context = context
-                        )
+                        AppActionButton("Enviar e-mail", onClick = sendEmail, enabled = email.isNotBlank())
                         Spacer(Modifier.height(16.dp))
-                        ActionButton("Nueva partida", onRestart)
+                        AppActionButton("Nueva partida", onStartNewGame)
                         Spacer(Modifier.height(16.dp))
-                        ActionButton("Salir", onExit)
+                        AppActionButton("Volver al inicio", onBackToHome)
+                        Spacer(Modifier.height(16.dp))
+                        AppActionButton("Salir", onExit)
                     }
                 }
             }
@@ -259,10 +272,10 @@ private fun ResultHeader(result: String) {
     Text(
         text = when (result) {
             "VICTORY" -> "¡Victoria!"
-            "DEFEAT"  -> "Derrota"
-            "DRAW"    -> "Empate"
-            "TIEMPO AGOTADO" -> "Tiempo Agotado" // Added
-            else      -> "Resultado Desconocido" // Fallback
+            "DEFEAT" -> "Derrota"
+            "DRAW" -> "Empate"
+            "TIEMPO AGOTADO" -> "Tiempo Agotado"
+            else -> "Resultado Desconocido"
         },
         style = MaterialTheme.typography.headlineLarge.copy(
             fontFamily = FontFamily.SansSerif,
@@ -275,7 +288,7 @@ private fun ResultHeader(result: String) {
 private fun ReadOnlyField(labelText: String, value: String) {
     OutlinedTextField(
         value = value,
-        onValueChange = {},
+        onValueChange = {}, // ReadOnlyField no permite cambios
         label = { Text(labelText, color = Color.White) },
         readOnly = true,
         modifier = Modifier.fillMaxWidth(),
@@ -285,96 +298,9 @@ private fun ReadOnlyField(labelText: String, value: String) {
             unfocusedBorderColor = Color.Gray,
             focusedLabelColor = Color.White,
             unfocusedLabelColor = Color.Gray,
-            disabledBorderColor = Color.Gray, // For readOnly fields
+            disabledBorderColor = Color.Gray,
             disabledLabelColor = Color.Gray,
-            disabledTextColor = Color.White
+            disabledTextColor = Color.White // Asegura que el texto sea blanco incluso cuando está deshabilitado
         )
     )
-}
-
-@Composable
-private fun SendEmailButton(
-    email: String,
-    result: String,
-    dateTime: String,
-    playerName: String,
-    boardSize: String,
-    gameLog: String,
-    context: android.content.Context
-) {
-    Button(
-        onClick = {
-            val subject = Uri.encode(
-                "Resultados TheLastTurn: ${
-                    when (result) {
-                        "VICTORY" -> "Victoria"
-                        "DEFEAT"  -> "Derrota"
-                        "DRAW"    -> "Empate"
-                        "TIEMPO AGOTADO" -> "Tiempo Agotado"
-                        else      -> "Desconocido"
-                    }
-                } – $dateTime"
-            )
-            val bodyText = buildString {
-                append("Fecha y hora: $dateTime\n")
-                append("Jugador: $playerName\n")
-                append("Tablero: $boardSize\n\n")
-                append("Log de la partida:\n$gameLog")
-                append("\n\nResultado Final: ${
-                    when (result) {
-                        "VICTORY" -> "¡Victoria!"
-                        "DEFEAT"  -> "Derrota"
-                        "DRAW"    -> "Empate"
-                        "TIEMPO AGOTADO" -> "Tiempo Agotado"
-                        else      -> "Desconocido"
-                    }
-                }\n")
-            }
-            val body = Uri.encode(bodyText)
-            val mailUri = Uri.parse("mailto:$email?subject=$subject&body=$body")
-            val intent = Intent(Intent.ACTION_SENDTO, mailUri)
-            // Ensure the intent can be resolved to prevent crashes if no email app is found
-            if (intent.resolveActivity(context.packageManager) != null) {
-                context.startActivity(intent)
-            } else {
-                // Optionally show a Toast or Snackbar if no email app is available
-                // Toast.makeText(context, "No hay aplicación de correo disponible.", Toast.LENGTH_SHORT).show()
-            }
-        },
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(50.dp)
-            .border(3.dp, Color.Black, RoundedCornerShape(12.dp))
-            .background(Color(0xFFA0522D), RoundedCornerShape(12.dp)), // Added background color here
-        colors = ButtonDefaults.buttonColors(
-            containerColor = Color.Transparent, // Transparent because background is already set
-            contentColor = Color.White
-        )
-    ) {
-        Text(
-            "Enviar e-mail",
-            style = MaterialTheme.typography.titleMedium.copy(fontFamily = FontFamily.SansSerif)
-        )
-    }
-}
-
-@Composable
-private fun ActionButton(text: String, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(50.dp)
-            .border(3.dp, Color.Black, RoundedCornerShape(12.dp))
-            .background(Color(0xFFA0522D), RoundedCornerShape(12.dp)), // Added background color here
-        colors = ButtonDefaults.buttonColors(
-            containerColor = Color.Transparent, // Transparent because background is already set
-            contentColor = Color.White
-        )
-    ) {
-        Text(
-            text,
-            style = MaterialTheme.typography.titleMedium.copy(fontFamily = FontFamily.SansSerif)
-        )
-    }
 }

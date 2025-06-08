@@ -1,6 +1,7 @@
 package com.example.thelastturn.viewmodel
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.thelastturn.data.GameRepository
@@ -11,53 +12,50 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.text.SimpleDateFormat
 import java.util.*
-import androidx.compose.runtime.getValue // Import for property delegation
-import androidx.compose.runtime.mutableStateOf // Import for state
-import androidx.compose.runtime.setValue // Import for property delegation
-import androidx.compose.runtime.mutableStateListOf // Import for observable lists
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateListOf
 
 class GameViewModel(
     application: Application,
-    val repository: GameRepository // Inyección del repositorio de partidas
+    private val repository: GameRepository
 ) : AndroidViewModel(application) {
 
-    // Gestor de preferencias (se inicializa una sola vez)
     private val prefs = PreferencesManager(application)
 
-    // Alias del jugador, observado de las preferencias
-    // Se inicializa con un valor por defecto y se actualiza al recoger de DataStore
+    // Estado del alias del jugador, cargado de preferencias
     private val _playerAlias = MutableStateFlow("Jugador")
     val playerAlias: StateFlow<String> = _playerAlias.asStateFlow()
 
-    // Configuración de tablero y tiempos
+    // Configuraciones de juego y tiempo
     var numberOfSlots by mutableStateOf(0); private set
     var remainingTotalTime by mutableStateOf(0)
     var remainingActionTime by mutableStateOf(0)
-
     var totalTimeSeconds by mutableStateOf(0)
     var actionTimeSeconds by mutableStateOf(0)
 
+    // Control de temporizadores
     private var isTimerRunning by mutableStateOf(false)
-    private var totalTimerJob: Job? = null                      // Uso de Job para gestionar mejor los tiempos
-    private var actionTimerJob: Job? = null                     // Consultado su uso en clase
+    private var totalTimerJob: Job? = null
+    private var actionTimerJob: Job? = null
 
-    // Estado de la partida
+    // Estado general del juego
     private val _gameState = mutableStateOf(GameState.ONGOING)
     val gameState get() = _gameState.value
 
-    // Métricas para el log y para guardar en la BD
+    // Métricas de la partida
     var cardsEliminated by mutableStateOf(0); private set
     var totalDamageDealt by mutableStateOf(0); private set
     var totalDamageReceived by mutableStateOf(0); private set
 
-    // Log detallado (para el panel secundario en tablets)
+    // Log de la partida
     private val _gameLog = MutableStateFlow("")
     val gameLog: StateFlow<String> get() = _gameLog.asStateFlow()
 
-    // Jugadores (se actualizan para reflejar el alias desde preferencias)
+    // Jugadores - Utilizar mutableStateOf para que los cambios en el objeto Player disparen recomposición
     private val _player = mutableStateOf(Player("Jugador", 3, 3, mutableListOf()))
     val player: Player get() = _player.value
-
     private val _enemy = mutableStateOf(Player("Enemigo", 3, 3, mutableListOf()))
     val enemy: Player get() = _enemy.value
 
@@ -65,119 +63,149 @@ class GameViewModel(
     private val _currentTurn = mutableStateOf(PlayerTurn.PLAYER)
     val currentTurn get() = _currentTurn.value
 
-    // Slots de tablero
-    // Utiliza `mutableStateListOf` para que Compose reaccione a los cambios en la lista misma
+    // Slots del tablero (MutableStateListOf para observables en Compose)
     val playerSlots = mutableStateListOf<BoardSlot>()
-    val enemySlots  = mutableStateListOf<BoardSlot>()
+    val enemySlots = mutableStateListOf<BoardSlot>()
 
-    // Manos / mazos
+    // Manos de los jugadores (MutableStateListOf para observables en Compose)
     private val _playerHand = mutableStateListOf<Card>()
-    val playerHand get() = _playerHand
+    val playerHand: List<Card> get() = _playerHand
     private val _enemyHand = mutableStateListOf<Card>()
-    val enemyHand get() = _enemyHand
+    val enemyHand: List<Card> get() = _enemyHand
 
-    // Carta seleccionada
+    // Carta seleccionada por el jugador
     private val _selectedCard = mutableStateOf<Card?>(null)
     val selectedCard get() = _selectedCard.value
 
-    // Evento de navegación para finalizar la partida (se usa para un solo disparo)
+    // Evento de navegación para finalizar la partida
     private val _navigationEvent = mutableStateOf<String?>(null)
     val navigationEvent get() = _navigationEvent.value
 
-    // Se ejecuta al inicializar el ViewModel
+    // Nuevo StateFlow para indicar si las preferencias iniciales han sido cargadas
+    private val _preferencesLoaded = MutableStateFlow(false)
+    val preferencesLoaded: StateFlow<Boolean> = _preferencesLoaded.asStateFlow()
+
     init {
+        Log.d("GameViewModel", "GameViewModel inicializado.")
         resetMetrics()
-        // Recoger el alias del jugador de las preferencias de forma reactiva
-        // Esto asegura que el ViewModel siempre tenga el alias actualizado
+
+        // Lanza la carga de preferencias y la inicialización del juego después
         viewModelScope.launch {
-            prefs.playerName.collect { alias ->
-                _playerAlias.value = alias
-                // Actualizar el nombre del jugador en el modelo del jugador principal
-                // sin re-inicializar el resto del estado del jugador
-                _player.value = _player.value.copy(name = alias)
-            }
+            // Collect all preference settings using .first() to get the current value once
+            val loadedPlayerName = prefs.playerName.first()
+            val loadedNumSlots = prefs.numSlots.first()
+            val loadedTotalTime = prefs.totalTime.first()
+            val loadedActionTime = prefs.actionTime.first()
+
+            _playerAlias.value = loadedPlayerName
+            _player.value = _player.value.copy(name = loadedPlayerName)
+            Log.d("GameViewModel", "Alias del jugador cargado de preferencias: $loadedPlayerName")
+
+            // Ahora, inicia el juego con las preferencias cargadas
+            startNewGameInternal(
+                numSlots = loadedNumSlots,
+                playerName = loadedPlayerName,
+                totalTime = loadedTotalTime,
+                actionTime = loadedActionTime
+            )
+
+            _preferencesLoaded.value = true // Indica que las preferencias iniciales han sido cargadas
+            Log.d("GameViewModel", "Preferencias iniciales cargadas y juego iniciado.")
         }
     }
 
-    // Método para resetear las métricas de la partida
+    /** Restablece las métricas de la partida para un nuevo juego. */
     private fun resetMetrics() {
         cardsEliminated = 0
         totalDamageDealt = 0
         totalDamageReceived = 0
-        _gameLog.value = "" // Limpiar el log al reiniciar
+        _gameLog.value = ""
+        Log.d("GameViewModel", "Métricas de juego reiniciadas.")
     }
 
-    // Método para agregar entradas al log de la partida
+    /** Añade una entrada al log de la partida con un timestamp. */
     fun addLogEntry(entry: String) {
-        _gameLog.value += "${SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())} - $entry\n"
+        val timestamp = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+        _gameLog.value += "$timestamp - $entry\n"
+        Log.d("GameViewModel", "Log: $entry")
     }
 
     /**
-     * Inicia una nueva partida con la configuración dada.
-     * @param numSlots Número de slots en el tablero.
-     * @param playerName Nombre del jugador (se guarda en preferencias).
-     * @param totalTime Tiempo total permitido para la partida.
-     * @param actionTime Tiempo para cada acción del jugador.
+     * Inicia una nueva partida con la configuración proporcionada.
+     * Esta función es llamada desde la UI (ej. desde MainActivity).
      */
     fun startNewGame(
         numSlots: Int,
-        playerName: String, // Este playerName se usa para guardar la preferencia.
+        playerName: String,
+        totalTime: Int,
+        actionTime: Int
+    ) {
+        // Guarda las preferencias aquí, ya que esta es la llamada desde la UI
+        viewModelScope.launch {
+            prefs.savePlayerName(playerName)
+            prefs.saveGameSettings(numSlots, totalTime, actionTime)
+            Log.d("GameViewModel", "Preferencias guardadas al iniciar nueva partida desde UI.")
+        }
+        startNewGameInternal(numSlots, playerName, totalTime, actionTime)
+    }
+
+    /**
+     * Lógica interna para iniciar una nueva partida.
+     * Llamada desde init (con prefs cargadas) o desde startNewGame (con prefs guardadas).
+     */
+    private fun startNewGameInternal(
+        numSlots: Int,
+        playerName: String,
         totalTime: Int,
         actionTime: Int
     ) {
         stopTimers()
         resetMetrics()
 
-        numberOfSlots = numSlots
-        totalTimeSeconds = totalTime
-        actionTimeSeconds = actionTime
-        remainingTotalTime = totalTimeSeconds
-        remainingActionTime = actionTimeSeconds
+        this.numberOfSlots = numSlots
+        this.totalTimeSeconds = totalTime
+        this.actionTimeSeconds = actionTime
+        this.remainingTotalTime = totalTimeSeconds
+        this.remainingActionTime = actionTimeSeconds
 
-        // Reset de estado de la partida
         _gameState.value = GameState.ONGOING
         _currentTurn.value = PlayerTurn.PLAYER
-        _navigationEvent.value = null // Resetear el evento de navegación
+        _navigationEvent.value = null
 
-        // Guardar el nombre del jugador en Preferences DataStore
-        // El Flow _playerAlias se actualizará automáticamente.
-        viewModelScope.launch {
-            prefs.savePlayerName(playerName)
-        }
+        // Actualiza el alias del jugador en el objeto Player
+        _player.value = player.copy(name = playerName, maxHits = 3, currentHits = 3, deck = Card.sampleDeck().toMutableList())
+        _enemy.value = enemy.copy(name = "Enemigo", maxHits = 3, currentHits = 3, deck = Card.sampleDeck().shuffled().toMutableList())
+        Log.d("GameViewModel", "Jugadores inicializados. Mazos: Jugador ${player.deck.size}, Enemigo ${enemy.deck.size}")
 
-        startTimers() // Iniciar los temporizadores de la partida
 
-        // Preparar mazos: se copian las cartas del mazo base para cada jugador
-        val baseDeck = Card.sampleDeck()
-        val playerDeck = baseDeck.map { it.copy() }.toMutableList()
-        val enemyDeck  = baseDeck.shuffled().map { it.copy() }.toMutableList()
-
-        // _player.value.name ya se actualiza mediante el Flow de _playerAlias
-        _player.value = player.copy(maxHits = 3, currentHits = 3, deck = playerDeck) // Reutiliza el alias actual
-        _enemy.value  = Player("Enemigo", 3, 3, enemyDeck)
-
-        // Configurar slots vacíos para el tablero
+        // Prepara los slots del tablero
         playerSlots.clear()
         enemySlots.clear()
         repeat(numSlots) { i ->
             playerSlots.add(BoardSlot(i + 1))
             enemySlots.add(BoardSlot(i + 1 + numSlots))
         }
+        Log.d("GameViewModel", "Slots del tablero inicializados: ${playerSlots.size} para jugador, ${enemySlots.size} para enemigo.")
 
-        // Limpiar manos y selección de cartas
+        // Limpia manos y carta seleccionada
         _playerHand.clear()
         _enemyHand.clear()
         _selectedCard.value = null
+        Log.d("GameViewModel", "Manos y carta seleccionada limpiadas.")
 
-        // Robar cartas iniciales y colocar carta inicial del enemigo
         drawInitialCards()
         placeInitialEnemyCard()
+
+        checkGameState()
+        startTimers()
+        addLogEntry("Nueva partida iniciada con $numSlots slots. Tiempo total: $totalTime s, Tiempo por acción: $actionTime s.")
     }
 
-    // Inicia los temporizadores de la partida
+    /** Inicia los temporizadores de la partida (total y por acción). */
     private fun startTimers() {
-        stopTimers() // Asegurarse de que no haya temporizadores corriendo ya
+        stopTimers() // Asegura que no haya temporizadores duplicados
         isTimerRunning = true
+        Log.d("GameViewModel", "Temporizadores iniciados.")
 
         // Temporizador total de la partida
         totalTimerJob = viewModelScope.launch {
@@ -185,316 +213,322 @@ class GameViewModel(
                 delay(1000L)
                 remainingTotalTime--
             }
-            // Si el tiempo total se agota y la partida sigue en curso, evaluamos el final por tiempo
             if (remainingTotalTime <= 0 && _gameState.value == GameState.ONGOING) {
                 evaluateEndGameByTime()
             }
         }
 
-        // Temporizador de acción por turno
+        // Temporizador por acción (gestiona el turno del enemigo si el jugador se agota)
         actionTimerJob = viewModelScope.launch {
             while (isTimerRunning && _gameState.value == GameState.ONGOING) {
-                resetActionTimer() // Resetear tiempo de acción al inicio de cada ciclo de turno
+                resetActionTimer()
                 while (remainingActionTime > 0 && _gameState.value == GameState.ONGOING) {
                     delay(1000L)
                     remainingActionTime--
                 }
 
-                // Si la partida no ha terminado por otras condiciones y el tiempo de acción se agotó
                 if (_gameState.value != GameState.ONGOING) break
 
-                // Lógica de turno automático si el tiempo de acción se agota en el turno del jugador
                 if (_currentTurn.value == PlayerTurn.PLAYER) {
                     addLogEntry("Tiempo de acción del jugador agotado. Turno automático del enemigo.")
                     _currentTurn.value = PlayerTurn.OPPONENT
-                    delay(500L) // Pequeña pausa para simular acción del enemigo
-                    placeEnemyCardForTurn() // El enemigo coloca una carta
+                    delay(500L)
+                    placeEnemyCardForTurn()
                     _currentTurn.value = PlayerTurn.COMBAT
-                    delay(500L) // Pequeña pausa antes del combate
-                    resolveCombat() // Resolver combate
-                    if (_gameState.value != GameState.ONGOING) break // Salir si el combate terminó la partida
-                    _currentTurn.value = PlayerTurn.PLAYER // Volver al turno del jugador
-                    resetActionTimer() // Resetear el tiempo de acción para el jugador
+                    delay(500L)
+                    resolveCombat()
+                    if (_gameState.value != GameState.ONGOING) break
+                    _currentTurn.value = PlayerTurn.PLAYER
+                    resetActionTimer()
                 }
             }
         }
     }
 
-    // Evalúa el final de la partida cuando se agota el tiempo total
+    /** Evalúa el resultado del juego si el tiempo total se agota. */
     private fun evaluateEndGameByTime() {
-        if (_gameState.value != GameState.ONGOING) return // Evitar re-evaluar si ya terminó
+        if (_gameState.value != GameState.ONGOING) return
 
         addLogEntry("Tiempo total de partida agotado.")
 
-        // Comparar vidas restantes para determinar el resultado
         when {
-            player.currentHits > enemy.currentHits -> {
-                _gameState.value = GameState.VICTORY
-                _navigationEvent.value = "VICTORY"
-            }
-            player.currentHits < enemy.currentHits -> {
-                _gameState.value = GameState.DEFEAT
-                _navigationEvent.value = "DEFEAT"
-            }
-            else -> { // Vidas iguales: usar daño como desempate
+            player.currentHits > enemy.currentHits -> setGameState(GameState.VICTORY)
+            player.currentHits < enemy.currentHits -> setGameState(GameState.DEFEAT)
+            else -> {
                 when {
-                    totalDamageDealt > totalDamageReceived -> {
-                        _gameState.value = GameState.VICTORY
-                        _navigationEvent.value = "VICTORY"
-                    }
-                    totalDamageDealt < totalDamageReceived -> {
-                        _gameState.value = GameState.DEFEAT
-                        _navigationEvent.value = "DEFEAT"
-                    }
-                    else -> { // Daño igual: empate
-                        _gameState.value = GameState.DRAW
-                        _navigationEvent.value = "DRAW"
-                    }
+                    totalDamageDealt > totalDamageReceived -> setGameState(GameState.VICTORY)
+                    totalDamageDealt < totalDamageReceived -> setGameState(GameState.DEFEAT)
+                    else -> setGameState(GameState.DRAW)
                 }
             }
         }
-        saveGameResult() // Guardar el resultado de la partida al finalizar
+        Log.d("GameViewModel", "Juego finalizado por tiempo: ${_gameState.value}")
     }
 
-    // Resetea el contador de tiempo de acción
+    /** Reinicia el temporizador de tiempo por acción. */
     private fun resetActionTimer() {
         remainingActionTime = actionTimeSeconds
+        Log.d("GameViewModel", "Temporizador de acción reiniciado a $remainingActionTime segundos.")
     }
 
-    // Detiene todos los temporizadores
+    /** Detiene todos los temporizadores activos. */
     private fun stopTimers() {
         totalTimerJob?.cancel()
         actionTimerJob?.cancel()
         isTimerRunning = false
+        Log.d("GameViewModel", "Temporizadores detenidos.")
     }
 
-    // Roba las cartas iniciales para ambos jugadores
+    /** Roba las cartas iniciales para ambos jugadores. */
     private fun drawInitialCards() {
-        repeat(3) { // Robar 3 cartas para cada jugador
+        Log.d("GameViewModel", "Robando cartas iniciales...")
+        repeat(3) {
             drawCard(_player.value.deck)?.let { _playerHand.add(it) }
             drawCard(_enemy.value.deck)?.let { _enemyHand.add(it) }
         }
+        Log.d("GameViewModel", "Mano del jugador: ${_playerHand.size} cartas. Mano del enemigo: ${_enemyHand.size} cartas.")
+        checkGameState()
     }
 
-    // Selecciona una carta para ser colocada en el tablero
+    /** Establece la carta seleccionada por el jugador. */
     fun selectCard(card: Card) {
         _selectedCard.value = card
         addLogEntry("Carta seleccionada: ${card.name}")
     }
 
-    /**
-     * Coloca la carta seleccionada en un slot del tablero del jugador.
-     * @param slotId ID del slot donde se intentará colocar la carta.
-     */
+    /** Coloca la carta seleccionada del jugador en un slot del tablero. */
     fun placeCard(slotId: Int) {
-        val card = _selectedCard.value ?: return // No hay carta seleccionada
-        val slot = playerSlots.firstOrNull { it.id == slotId } ?: return // Slot no encontrado
+        val card = _selectedCard.value ?: run {
+            addLogEntry("Error: No hay carta seleccionada para colocar.")
+            return
+        }
+        val slot = playerSlots.firstOrNull { it.id == slotId } ?: run {
+            addLogEntry("Error: Slot ${slotId} no encontrado.")
+            return
+        }
 
-        // Solo permitir colocar si el slot está vacío y es el turno del jugador
         if (slot.isEmpty && _currentTurn.value == PlayerTurn.PLAYER) {
             slot.placeCard(card)
-            _playerHand.remove(card) // Eliminar la carta de la mano
-            _selectedCard.value = null // Deseleccionar la carta
-            resetActionTimer() // Resetear el tiempo de acción del jugador
+            _playerHand.remove(card)
+            _selectedCard.value = null
+            resetActionTimer()
 
             addLogEntry("Carta ${card.name} colocada en slot ${slotId}.")
 
-            // Iniciar la secuencia de combate y turno del enemigo
             viewModelScope.launch {
                 _currentTurn.value = PlayerTurn.COMBAT
-                delay(400L) // Pausa para simular la transición
-                resolveCombat() // Resolver el combate
+                delay(400L)
+                resolveCombat()
 
-                // Si la partida no ha terminado después del combate, procede con el turno del enemigo
                 if (_gameState.value == GameState.ONGOING) {
-                    placeEnemyCardForTurn() // El enemigo coloca su carta
-                    _currentTurn.value = PlayerTurn.PLAYER // Volver al turno del jugador
-                    resetActionTimer() // Resetear el tiempo de acción para el jugador
+                    placeEnemyCardForTurn()
+                    _currentTurn.value = PlayerTurn.PLAYER
+                    resetActionTimer()
                 }
             }
         } else {
-            addLogEntry("No se puede colocar la carta en el slot ${slotId}.")
+            addLogEntry("No se puede colocar la carta: slot no vacío o no es el turno del jugador.")
         }
     }
 
-    // Resuelve el combate entre las cartas en los slots de ambos jugadores
+    /** Resuelve la fase de combate comparando cartas en los slots. */
     private fun resolveCombat() {
         addLogEntry("Iniciando fase de combate.")
-        playerSlots.zip(enemySlots).forEach { (playerSlot, enemySlot) ->
+        val currentplayerSlots = playerSlots.toList()
+        val currentenemySlots = enemySlots.toList()
+
+        currentplayerSlots.zip(currentenemySlots).forEach { (playerSlot, enemySlot) ->
+            if (_gameState.value != GameState.ONGOING) {
+                addLogEntry("Combate detenido prematuramente, juego finalizado.")
+                return
+            }
+
             val playerCard = playerSlot.card
-            val enemyCard  = enemySlot.card
+            val enemyCard = enemySlot.card
 
             when {
-                // Ambas cartas presentes
                 playerCard != null && enemyCard != null -> {
                     val damageToEnemy = playerCard.damage
                     val damageToPlayer = enemyCard.damage
 
-                    // Actualizar métricas de daño
                     totalDamageDealt += damageToEnemy
                     totalDamageReceived += damageToPlayer
 
-                    // Aplicar daño a las cartas
-                    val updatedPlayer = playerCard.withHealth(playerCard.health - damageToPlayer)
-                    val updatedEnemy  = enemyCard.withHealth(enemyCard.health - damageToEnemy)
+                    val updatedPlayerCard = playerCard.withHealth(playerCard.health - damageToPlayer)
+                    val updatedEnemyCard = enemyCard.withHealth(enemyCard.health - damageToEnemy)
 
-                    playerSlot.updateCard(updatedPlayer)
-                    enemySlot.updateCard(updatedEnemy)
+                    playerSlot.updateCard(updatedPlayerCard)
+                    enemySlot.updateCard(updatedEnemyCard)
 
                     addLogEntry("Combate: ${playerCard.name} (${playerCard.health}) vs ${enemyCard.name} (${enemyCard.health}).")
 
-                    // Si la carta del enemigo es eliminada
-                    if (updatedEnemy.health <= 0) {
+                    if (updatedEnemyCard.health <= 0) {
                         enemySlot.clear()
                         cardsEliminated++
                         addLogEntry("Carta enemiga ${enemyCard.name} eliminada.")
                     }
-                    // Si la carta del jugador es eliminada
-                    if (updatedPlayer.health <= 0) {
+                    if (updatedPlayerCard.health <= 0) {
                         playerSlot.clear()
                         addLogEntry("Carta del jugador ${playerCard.name} eliminada.")
                     }
                 }
-                // Solo carta del jugador presente (daño directo al enemigo)
                 playerCard != null && enemyCard == null -> {
-                    totalDamageDealt += playerCard.damage
-                    _enemy.value = _enemy.value.copy(currentHits = _enemy.value.currentHits - 1)
-                    playerSlot.clear() // La carta del jugador también se elimina tras el ataque directo
-                    addLogEntry("Carta ${playerCard.name} del jugador inflige daño directo al enemigo. Vidas enemigo: ${_enemy.value.currentHits}")
+                    val directDamageToEnemyPlayer = 1
+                    totalDamageDealt += directDamageToEnemyPlayer
+                    _enemy.value = _enemy.value.copy(currentHits = _enemy.value.currentHits - directDamageToEnemyPlayer)
+                    addLogEntry("Carta ${playerCard.name} del jugador ataca directamente al enemigo, infligiendo $directDamageToEnemyPlayer daño. Vidas enemigo: ${_enemy.value.currentHits}")
                 }
-                // Solo carta del enemigo presente (daño directo al jugador)
                 playerCard == null && enemyCard != null -> {
-                    totalDamageReceived += enemyCard.damage
-                    _player.value = _player.value.copy(currentHits = _player.value.currentHits - 1)
-                    enemySlot.clear() // La carta del enemigo también se elimina tras el ataque directo
-                    addLogEntry("Carta ${enemyCard.name} del enemigo inflige daño directo al jugador. Vidas jugador: ${_player.value.currentHits}")
+                    val directDamageToPlayerPlayer = 1
+                    totalDamageReceived += directDamageToPlayerPlayer
+                    _player.value = _player.value.copy(currentHits = _player.value.currentHits - directDamageToPlayerPlayer)
+                    addLogEntry("Carta ${enemyCard.name} del enemigo ataca directamente al jugador, infligiendo $directDamageToPlayerPlayer daño. Vidas jugador: ${_player.value.currentHits}")
+                }
+                playerCard == null && enemyCard == null -> {
+                    addLogEntry("Slots vacíos. No hay combate en este par.")
                 }
             }
+            checkGameState()
         }
 
-        checkGameState() // Comprobar si la partida ha terminado después del combate
-
-        // Robar 2 cartas tras el duelo, si la partida sigue en curso
         if (_gameState.value == GameState.ONGOING) {
             repeat(2) {
-                drawCard(_player.value.deck)?.let { _playerHand.add(it) }
-                drawCard(_enemy.value.deck)?.let { _enemyHand.add(it) }
+                drawCard(player.deck)?.let { _playerHand.add(it) }
+                drawCard(enemy.deck)?.let { _enemyHand.add(it) }
             }
-            addLogEntry("Se robaron 2 cartas para cada jugador.")
+            addLogEntry("Se robaron 2 cartas para cada jugador después del combate.")
+            checkGameState()
         }
     }
 
-    // Lógica para comprobar el resultado de la partida
+    /** Comprueba el estado actual del juego para determinar si ha terminado. */
     private fun checkGameState() {
-        if (_gameState.value != GameState.ONGOING) return // Si ya la partida terminó, no re-evaluar
+        if (_gameState.value != GameState.ONGOING) return
 
         val pHits = _player.value.currentHits
         val eHits = _enemy.value.currentHits
-        val pCards = _player.value.deck.isNotEmpty() || _playerHand.isNotEmpty() || playerSlots.any { !it.isEmpty }
-        val eCards = _enemy.value.deck.isNotEmpty() || _enemyHand.isNotEmpty() || enemySlots.any { !it.isEmpty }
+
+        val playerHasCardsInDeck = _player.value.deck.isNotEmpty()
+        val enemyHasCardsInDeck = _enemy.value.deck.isNotEmpty()
+
+        val playerHasCardsAvailable = playerHasCardsInDeck || _playerHand.isNotEmpty() || playerSlots.any { !it.isEmpty }
+        val enemyHasCardsAvailable = enemyHasCardsInDeck || _enemyHand.isNotEmpty() || enemySlots.any { !it.isEmpty }
+
+        Log.d("GameViewModel", "CheckGameState: Player Hits: $pHits, Enemy Hits: $eHits")
+        Log.d("GameViewModel", "Player has cards: $playerHasCardsAvailable, Enemy has cards: $enemyHasCardsAvailable")
 
         when {
-            // Ambos jugadores sin vidas
             pHits <= 0 && eHits <= 0 -> {
+                addLogEntry("Ambos jugadores sin vidas.")
                 when {
-                    totalDamageDealt > totalDamageReceived -> {
-                        _gameState.value = GameState.VICTORY
-                        _navigationEvent.value = "VICTORY"
-                    }
-                    totalDamageDealt < totalDamageReceived -> {
-                        _gameState.value = GameState.DEFEAT
-                        _navigationEvent.value = "DEFEAT"
-                    }
-                    else -> {
-                        _gameState.value = GameState.DRAW
-                        _navigationEvent.value = "DRAW"
-                    }
+                    totalDamageDealt > totalDamageReceived -> setGameState(GameState.VICTORY)
+                    totalDamageDealt < totalDamageReceived -> setGameState(GameState.DEFEAT)
+                    else -> setGameState(GameState.DRAW)
                 }
             }
-
-            // Jugador sin vidas
             pHits <= 0 -> {
-                _gameState.value = GameState.DEFEAT
-                _navigationEvent.value = "DEFEAT"
+                addLogEntry("El jugador se quedó sin vidas.")
+                setGameState(GameState.DEFEAT)
             }
-
-            // Enemigo sin vidas
             eHits <= 0 -> {
-                _gameState.value = GameState.VICTORY
-                _navigationEvent.value = "VICTORY"
+                addLogEntry("El enemigo se quedó sin vidas.")
+                setGameState(GameState.VICTORY)
             }
-
-            // Ambos sin cartas y sin cartas en tablero
-            !pCards && !eCards -> {
+            !playerHasCardsAvailable && !enemyHasCardsAvailable -> {
+                addLogEntry("¡Ambos jugadores se quedaron sin cartas ni cartas en tablero!")
                 when {
-                    pHits > eHits -> {
-                        _gameState.value = GameState.VICTORY
-                        _navigationEvent.value = "VICTORY"
-                    }
-                    pHits < eHits -> {
-                        _gameState.value = GameState.DEFEAT
-                        _navigationEvent.value = "DEFEAT"
-                    }
-                    else -> { // Vidas iguales: usar daño como desempate
+                    pHits > eHits -> setGameState(GameState.VICTORY)
+                    pHits < eHits -> setGameState(GameState.DEFEAT)
+                    else -> {
                         when {
-                            totalDamageDealt > totalDamageReceived -> {
-                                _gameState.value = GameState.VICTORY
-                                _navigationEvent.value = "VICTORY"
-                            }
-                            totalDamageDealt < totalDamageReceived -> {
-                                _gameState.value = GameState.DEFEAT
-                                _navigationEvent.value = "DEFEAT"
-                            }
-                            else -> {
-                                _gameState.value = GameState.DRAW
-                                _navigationEvent.value = "DRAW"
-                            }
+                            totalDamageDealt > totalDamageReceived -> setGameState(GameState.VICTORY)
+                            totalDamageDealt < totalDamageReceived -> setGameState(GameState.DEFEAT)
+                            else -> setGameState(GameState.DRAW)
                         }
                     }
                 }
             }
-        }
-
-        // Si el estado de la partida ha cambiado a finalizado, guardar en la BD
-        if (_gameState.value != GameState.ONGOING) {
-            stopTimers() // Detener temporizadores
-            saveGameResult() // Guardar el resultado de la partida
+            !playerHasCardsAvailable && enemyHasCardsAvailable -> {
+                addLogEntry("El jugador se quedó sin cartas ni cartas en tablero.")
+                setGameState(GameState.DEFEAT)
+            }
+            !enemyHasCardsAvailable && playerHasCardsAvailable -> {
+                addLogEntry("El enemigo se quedó sin cartas ni cartas en tablero.")
+                setGameState(GameState.VICTORY)
+            }
+            else -> Log.d("GameViewModel", "Juego continúa ONGOING.")
         }
     }
 
-    // Roba una carta del mazo dado, si no está vacío
-    private fun drawCard(deck: MutableList<Card>) = deck.removeFirstOrNull()
+    /** Establece el estado final del juego y desencadena la navegación. */
+    private fun setGameState(state: GameState) {
+        if (_gameState.value == state) return
 
-    // El enemigo coloca una carta en un slot vacío durante su turno
+        _gameState.value = state
+        _navigationEvent.value = when (state) {
+            GameState.VICTORY -> "VICTORY"
+            GameState.DEFEAT -> "DEFEAT"
+            GameState.DRAW -> "DRAW"
+            GameState.TIME_OVER -> "TIEMPO_AGOTADO"
+            else -> null
+        }
+        stopTimers()
+        saveGameResult()
+        addLogEntry("Juego finalizado con estado: $state. Resultado para navegación: ${_navigationEvent.value}")
+    }
+
+    /** Roba una carta del mazo especificado. */
+    private fun drawCard(deck: MutableList<Card>): Card? {
+        val drawnCard = deck.removeFirstOrNull()
+        if (drawnCard != null) {
+            Log.d("GameViewModel", "Carta robada: ${drawnCard.name}. Quedan ${deck.size} en el mazo.")
+        } else {
+            Log.d("GameViewModel", "Intento de robar carta de mazo vacío.")
+        }
+        checkGameState()
+        return drawnCard
+    }
+
+    /** Lógica para que el enemigo coloque una carta durante su turno. */
     private fun placeEnemyCardForTurn() {
         val emptySlot = enemySlots.firstOrNull { it.isEmpty }
         if (emptySlot != null && _enemyHand.isNotEmpty()) {
-            val cardToPlace = _enemyHand.random() // Elige una carta al azar de la mano del enemigo
+            val cardToPlace = _enemyHand.random()
             emptySlot.placeCard(cardToPlace)
             _enemyHand.remove(cardToPlace)
             addLogEntry("El enemigo colocó ${cardToPlace.name} en slot ${emptySlot.id}.")
+            Log.d("GameViewModel", "Mano del enemigo después de colocar: ${_enemyHand.size} cartas.")
         } else {
-            addLogEntry("El enemigo no pudo colocar una carta (sin slots vacíos o sin cartas).")
+            addLogEntry("El enemigo no pudo colocar una carta (sin slots vacíos o sin cartas en mano).")
+            Log.d("GameViewModel", "Slots vacíos para enemigo: ${enemySlots.count { it.isEmpty }}. Cartas en mano enemigo: ${_enemyHand.size}.")
+            checkGameState()
         }
     }
 
-    // Coloca la carta inicial del enemigo al principio de la partida
+    /** Lógica para que el enemigo coloque su primera carta al inicio del juego. */
     private fun placeInitialEnemyCard() {
+        Log.d("GameViewModel", "Intentando colocar carta inicial del enemigo...")
         enemySlots.firstOrNull { it.isEmpty }?.let { slot ->
             _enemyHand.firstOrNull()?.also { card ->
                 slot.placeCard(card)
                 _enemyHand.remove(card)
                 addLogEntry("El enemigo colocó la carta inicial ${card.name} en slot ${slot.id}.")
+                Log.d("GameViewModel", "Carta inicial del enemigo colocada. Mano del enemigo: ${_enemyHand.size} cartas.")
+                checkGameState()
+            } ?: run {
+                addLogEntry("Error: El enemigo no tiene cartas en mano para la carta inicial.")
+                Log.d("GameViewModel", "Mano del enemigo está vacía para la carta inicial.")
+                checkGameState()
             }
+        } ?: run {
+            addLogEntry("No hay slots disponibles para la carta inicial del enemigo.")
+            Log.d("GameViewModel", "Todos los slots de enemigo están ocupados para la carta inicial.")
+            checkGameState()
         }
     }
 
-    /**
-     * Guarda los resultados de la partida actual en la base de datos de Room.
-     * Se llama cuando la partida finaliza (victoria, derrota, empate o tiempo agotado).
-     */
+    /** Guarda el resultado de la partida en la base de datos. */
     private fun saveGameResult() {
-        // Asegurarse de que el estado es un estado final antes de guardar
         if (_gameState.value == GameState.ONGOING) return
 
         viewModelScope.launch {
@@ -502,33 +536,37 @@ class GameViewModel(
                 GameState.VICTORY -> "Victoria"
                 GameState.DEFEAT -> "Derrota"
                 GameState.DRAW -> "Empate"
-                else -> "Desconocido" // No debería llegar aquí
+                GameState.TIME_OVER -> "Tiempo Agotado"
+                else -> "Desconocido"
             }
 
             val partida = Partida(
-                alias = _playerAlias.value, // Usar el alias actual del jugador desde Preferences
+                id = UUID.randomUUID().toString(),
+                alias = _playerAlias.value,
                 fecha = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()),
                 resultado = resultadoString,
-                sizeTablero = numberOfSlots, // Asumiendo que numberOfSlots se mantiene del inicio de la partida
+                sizeTablero = numberOfSlots,
                 dmgInfligido = totalDamageDealt,
                 dmgRecibido = totalDamageReceived,
                 cartasEliminadas = cardsEliminated,
                 logPartida = gameLog.value
             )
-            repository.insert(partida) // Insertar la partida en la BD
+            repository.insertPartida(partida)
             addLogEntry("Partida finalizada y guardada: $resultadoString")
+            Log.d("GameViewModel", "Partida guardada en la DB. ID: ${partida.id}, Resultado: ${partida.resultado}")
         }
     }
 
-    // Obtiene un resumen de las métricas de la partida para el log
+    /** Obtiene un resumen de las métricas del juego para mostrar en la pantalla de resultados. */
     fun getGameLogSummary(): String {
         return "Cartas eliminadas: $cardsEliminated\n" +
                 "Daño infligido: $totalDamageDealt\n" +
                 "Daño recibido: $totalDamageReceived"
     }
 
-    // Resetea el evento de navegación (importante para eventos de un solo uso)
+    /** Restablece el evento de navegación después de ser consumido. */
     fun resetNavigation() {
         _navigationEvent.value = null
+        Log.d("GameViewModel", "Evento de navegación reseteado.")
     }
 }

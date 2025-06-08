@@ -7,7 +7,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -17,16 +20,17 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.example.thelastturn.ui.components.isTabletDevice
 
 @Composable
 fun HelpScreen(onBack: () -> Unit) {
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val isTablet = isTablet() // Reutilizamos la función isTablet de GameScreen.kt
+    val isTablet = isTabletDevice()
 
     val horizontalPadding = if (isTablet) 80.dp else 30.dp
     val verticalPadding = if (isTablet) 40.dp else 30.dp
-    val textSizeMultiplier = if (isTablet) 1.2f else 1f // Aumentar tamaño de texto en tablets
+    val textSizeMultiplier = if (isTablet) 1.2f else 1f
     val buttonHeight = if (isTablet) 80.dp else 70.dp
     val buttonPadding = if (isTablet) 30.dp else 20.dp
 
@@ -45,7 +49,7 @@ fun HelpScreen(onBack: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .padding(horizontal = horizontalPadding, vertical = verticalPadding)
-                .verticalScroll(rememberScrollState()) // Añadir scroll para asegurar visibilidad en pantallas pequeñas o landscape con mucho contenido
+                .verticalScroll(rememberScrollState())
         ) {
             Text(
                 text = "Cómo Jugar",
@@ -77,7 +81,7 @@ fun HelpScreen(onBack: () -> Unit) {
                 modifier = Modifier
                     .padding(buttonPadding)
                     .height(buttonHeight)
-                    .fillMaxWidth(if (isTablet && isLandscape) 0.6f else 0.8f) // Ajustar ancho del botón
+                    .fillMaxWidth(if (isTablet && isLandscape) 0.6f else 0.8f)
                     .border(
                         width = 3.dp,
                         color = Color.Black,

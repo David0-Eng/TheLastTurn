@@ -10,8 +10,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
-import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,34 +24,36 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.thelastturn.data.GameRepository
 import com.example.thelastturn.data.Partida
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 
-// Helper function (if not already defined elsewhere)
-@Composable
-fun isTabletDevice(): Boolean {
-    val configuration = LocalConfiguration.current
-    // A common breakpoint for compact vs medium/expanded in Jetpack Compose's WindowSizeClasses
-    // is around 600dp. Devices wider than this are often considered tablets for UI purposes.
-    return configuration.screenWidthDp.dp >= 600.dp
-}
+import com.example.thelastturn.ui.components.isTabletDevice
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PastGamesScreen(
-    gameRepository: GameRepository, // Se inyecta el repositorio para acceder a los datos
-    navController: NavController,   // NavController para la navegación en smartphones
+    gameRepository: GameRepository,
+    navController: NavController,
     onBack: () -> Unit
 ) {
-    // Observa todas las partidas desde el repositorio
     val allPartidas by gameRepository.allPartidas.collectAsState(initial = emptyList())
     var selectedPartida by remember { mutableStateOf<Partida?>(null) }
+    val coroutineScope = rememberCoroutineScope()
 
-    // Determina la clase de tamaño de ventana para el responsive layout
-    // Opcional: puedes usar calculateWindowSizeClass() si estás usando WindowSizeClass para más granularidad
-    // val windowSizeClass = calculateWindowSizeClass(activity = LocalContext.current as Activity)
-    val isTablet = isTabletDevice() // Usa tu helper para simplificar el ejemplo
+    val isTablet = isTabletDevice()
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    val onDeletePartida: (Partida) -> Unit = { partidaToDelete ->
+        coroutineScope.launch {
+            gameRepository.deletePartida(partidaToDelete)
+            if (selectedPartida == partidaToDelete) {
+                selectedPartida = null
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -84,72 +86,76 @@ fun PastGamesScreen(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                if (isTablet && isLandscape) {
-                    // Tablet Landscape (Bi-panel: Lista a la izquierda, Detalle a la derecha)
-                    Row(
-                        modifier = Modifier.fillMaxSize().padding(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                            PartidaList(allPartidas = allPartidas) { partida ->
-                                selectedPartida = partida
+                if (isTablet) {
+                    if (isLandscape) {
+                        Row(
+                            modifier = Modifier.fillMaxSize().padding(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                                PartidaList(
+                                    allPartidas = allPartidas,
+                                    onPartidaClick = { partida -> selectedPartida = partida },
+                                    onDeleteClick = onDeletePartida
+                                )
                             }
-                        }
-                        Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                            if (selectedPartida != null) {
-                                PartidaDetail(partida = selectedPartida!!)
-                            } else {
-                                Box(
-                                    modifier = Modifier.fillMaxSize()
-                                        .background(Color.White.copy(alpha = 0.9f), RoundedCornerShape(12.dp))
-                                        .border(1.dp, Color.Gray, RoundedCornerShape(12.dp)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text("Selecciona una partida para ver los detalles",
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = Color.Gray
-                                    )
+                            Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                                if (selectedPartida != null) {
+                                    PartidaDetailContent(partida = selectedPartida!!)
+                                } else {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize()
+                                            .background(Color.White.copy(alpha = 0.9f), RoundedCornerShape(12.dp))
+                                            .border(1.dp, Color.Gray, RoundedCornerShape(12.dp)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("Selecciona una partida para ver los detalles",
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = Color.Gray
+                                        )
+                                    }
                                 }
                             }
                         }
-                    }
-                } else if (isTablet && !isLandscape) {
-                    // Tablet Portrait (Bi-panel: Lista arriba, Detalle abajo)
-                    Column(
-                        modifier = Modifier.fillMaxSize().padding(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Column(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                            PartidaList(allPartidas = allPartidas) { partida ->
-                                selectedPartida = partida
+                    } else {
+                        Column(
+                            modifier = Modifier.fillMaxSize().padding(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Column(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                                PartidaList(
+                                    allPartidas = allPartidas,
+                                    onPartidaClick = { partida -> selectedPartida = partida },
+                                    onDeleteClick = onDeletePartida
+                                )
                             }
-                        }
-                        Column(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                            if (selectedPartida != null) {
-                                PartidaDetail(partida = selectedPartida!!)
-                            } else {
-                                Box(
-                                    modifier = Modifier.fillMaxSize()
-                                        .background(Color.White.copy(alpha = 0.9f), RoundedCornerShape(12.dp))
-                                        .border(1.dp, Color.Gray, RoundedCornerShape(12.dp)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text("Selecciona una partida para ver los detalles",
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = Color.Gray
-                                    )
+                            Column(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                                if (selectedPartida != null) {
+                                    PartidaDetailContent(partida = selectedPartida!!)
+                                } else {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize()
+                                            .background(Color.White.copy(alpha = 0.9f), RoundedCornerShape(12.dp))
+                                            .border(1.dp, Color.Gray, RoundedCornerShape(12.dp)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("Selecciona una partida para ver los detalles",
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = Color.Gray
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
                 } else {
-                    // Smartphone (Mono-panel: Solo lista, navegación a otra pantalla para el detalle)
-                    PartidaList(allPartidas = allPartidas) { partida ->
-                        // Navegar a la pantalla de detalle con los datos de la partida
-                        // Como Partida es Parcelable, podemos pasarla directamente como argumento
-                        navController.currentBackStackEntry?.arguments?.putParcelable("partidaDetail", partida)
-                        navController.navigate("past_game_detail")
-                    }
+                    PartidaList(
+                        allPartidas = allPartidas,
+                        onPartidaClick = { partida ->
+                            navController.navigate("past_game_detail/${partida.id}")
+                        },
+                        onDeleteClick = onDeletePartida
+                    )
                 }
             }
         }
@@ -157,7 +163,11 @@ fun PastGamesScreen(
 }
 
 @Composable
-fun PartidaList(allPartidas: List<Partida>, onPartidaClick: (Partida) -> Unit) {
+fun PartidaList(
+    allPartidas: List<Partida>,
+    onPartidaClick: (Partida) -> Unit,
+    onDeleteClick: (Partida) -> Unit
+) {
     if (allPartidas.isEmpty()) {
         Box(
             modifier = Modifier.fillMaxSize()
@@ -176,25 +186,43 @@ fun PartidaList(allPartidas: List<Partida>, onPartidaClick: (Partida) -> Unit) {
                 .padding(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(allPartidas) { partida ->
+            items(allPartidas, key = { it.id }) { partida ->
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onPartidaClick(partida) },
                     colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5DC).copy(alpha = 0.8f))
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Alias: ${partida.alias}", fontWeight = FontWeight.Bold)
-                        Text("Fecha: ${partida.fecha}")
-                        Text("Resultado: ${partida.resultado}", fontWeight = FontWeight.Bold,
-                            color = when (partida.resultado) {
-                                "VICTORY" -> Color.Green.copy(alpha = 0.8f)
-                                "DEFEAT" -> Color.Red.copy(alpha = 0.8f)
-                                "DRAW" -> Color.Blue.copy(alpha = 0.8f)
-                                "TIEMPO AGOTADO" -> Color.Magenta.copy(alpha = 0.8f) // Ajusta si tienes este resultado
-                                else -> Color.Black
-                            }
-                        )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Alias: ${partida.alias}", fontWeight = FontWeight.Bold)
+                            Text("Fecha: ${partida.fecha}")
+                            Text("Resultado: ${partida.resultado}", fontWeight = FontWeight.Bold,
+                                color = when (partida.resultado) {
+                                    "Victoria" -> Color.Green.copy(alpha = 0.8f)
+                                    "Derrota" -> Color.Red.copy(alpha = 0.8f)
+                                    "Empate" -> Color.Blue.copy(alpha = 0.8f)
+                                    "Tiempo Agotado" -> Color.Magenta.copy(alpha = 0.8f)
+                                    else -> Color.Black
+                                }
+                            )
+                        }
+                        IconButton(
+                            onClick = { onDeleteClick(partida) },
+                            modifier = Modifier.align(Alignment.CenterVertically)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Eliminar partida",
+                                tint = Color.Red.copy(alpha = 0.7f)
+                            )
+                        }
                     }
                 }
             }
@@ -203,26 +231,27 @@ fun PartidaList(allPartidas: List<Partida>, onPartidaClick: (Partida) -> Unit) {
 }
 
 @Composable
-fun PartidaDetail(partida: Partida) {
+fun PartidaDetailContent(partida: Partida) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White.copy(alpha = 0.9f), RoundedCornerShape(12.dp))
             .border(1.dp, Color.Gray, RoundedCornerShape(12.dp))
-            .padding(16.dp),
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text("Detalle de Partida", style = MaterialTheme.typography.titleLarge.copy(fontFamily = FontFamily.SansSerif, color = Color(0xFF8B4513)))
         Divider(modifier = Modifier.padding(vertical = 4.dp))
-        Text("ID Partida: ${partida.id.take(8)}...") // Mostrar solo una parte del ID
+        Text("ID Partida: ${partida.id.take(8)}...")
         Text("Alias: ${partida.alias}")
         Text("Fecha: ${partida.fecha}")
         Text("Resultado: ${partida.resultado}",
             color = when (partida.resultado) {
-                "VICTORY" -> Color.Green.copy(alpha = 0.8f)
-                "DEFEAT" -> Color.Red.copy(alpha = 0.8f)
-                "DRAW" -> Color.Blue.copy(alpha = 0.8f)
-                "TIEMPO AGOTADO" -> Color.Magenta.copy(alpha = 0.8f)
+                "Victoria" -> Color.Green.copy(alpha = 0.8f)
+                "Derrota" -> Color.Red.copy(alpha = 0.8f)
+                "Empate" -> Color.Blue.copy(alpha = 0.8f)
+                "Tiempo Agotado" -> Color.Magenta.copy(alpha = 0.8f)
                 else -> Color.Black
             }
         )
@@ -230,23 +259,37 @@ fun PartidaDetail(partida: Partida) {
         Text("Daño Infligido: ${partida.dmgInfligido}")
         Text("Daño Recibido: ${partida.dmgRecibido}")
         Text("Cartas Eliminadas: ${partida.cartasEliminadas}")
-        // Aquí puedes añadir más detalles si tu clase Partida los tiene y los necesitas mostrar
-        // Por ejemplo, si tu juego fuera Buscaminas, añadirías:
-        // Text("Nº Casillas Escogidas: ${partida.casillasEscogidas}")
-        // Text("Nº Minas: ${partida.numMinas}")
-        // Text("Tiempo Total Empleado: ${partida.tiempoTotal}")
-        // Text("Casilla Bomba: (${partida.bombaX}, ${partida.bombaY})")
+
+        Text(
+            "Log de Partida:\n${partida.logPartida}",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 100.dp, max = 250.dp)
+                .background(Color.LightGray.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                .border(1.dp, Color.Gray, RoundedCornerShape(8.dp))
+                .padding(8.dp)
+                .verticalScroll(rememberScrollState())
+        )
     }
 }
 
-// Para smartphones, necesitas una pantalla de detalle separada
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PastGameDetailScreen(
-    navController: NavController
+    navController: NavController,
+    gameRepository: GameRepository,
+    partidaId: String?
 ) {
-    // Recupera la partida del argumento de navegación
-    val partida = navController.previousBackStackEntry?.arguments?.getParcelable<Partida>("partidaDetail")
+    val partida by remember(partidaId) {
+        if (partidaId != null) {
+            gameRepository.getPartidaById(partidaId)
+        } else {
+            MutableStateFlow(null)
+        }
+    }.collectAsState(initial = null)
+
+    val coroutineScope = rememberCoroutineScope()
 
     Scaffold(
         topBar = {
@@ -259,6 +302,22 @@ fun PastGameDetailScreen(
                             contentDescription = "Volver",
                             tint = Color.White
                         )
+                    }
+                },
+                actions = {
+                    if (partida != null) {
+                        IconButton(onClick = {
+                            coroutineScope.launch {
+                                gameRepository.deletePartida(partida!!)
+                                navController.popBackStack()
+                            }
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Eliminar esta partida",
+                                tint = Color.White
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -280,9 +339,13 @@ fun PastGameDetailScreen(
                 contentAlignment = Alignment.Center
             ) {
                 if (partida != null) {
-                    PartidaDetail(partida = partida)
+                    PartidaDetailContent(partida = partida!!)
                 } else {
-                    Text("Error: No se pudo cargar el detalle de la partida.")
+                    Text(
+                        "Cargando detalles de la partida o partida no encontrada.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Color.Gray
+                    )
                 }
             }
         }

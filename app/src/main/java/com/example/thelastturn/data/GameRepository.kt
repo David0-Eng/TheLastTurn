@@ -9,7 +9,11 @@ class GameRepository(private val partidaDao: PartidaDao) {
         partidaDao.insert(partida)
     }
 
-    suspend fun insert(partida: Partida) {
-        partidaDao.insert(partida)
+    suspend fun deletePartida(partida: Partida) {
+        partidaDao.delete(partida)
+    }
+
+    fun getPartidaById(id: String): Flow<Partida?> {
+        return partidaDao.getPartidaById(id)
     }
 }
