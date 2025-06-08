@@ -35,22 +35,19 @@ fun PreferencesScreen(
     val preferencesManager = remember { PreferencesManager(context) }
     val scope = rememberCoroutineScope()
 
-    // Carga las preferencias iniciales
     val initialPlayerName by preferencesManager.playerName.collectAsState(initial = "")
     val initialNumSlots by preferencesManager.numSlots.collectAsState(initial = 4)
     val initialTotalTime by preferencesManager.totalTime.collectAsState(initial = 180)
     val initialActionTime by preferencesManager.actionTime.collectAsState(initial = 30)
 
-    // Estados para los campos de entrada
     var playerName by rememberSaveable { mutableStateOf("") }
     var numSlots by rememberSaveable { mutableStateOf(4) }
     var totalTime by rememberSaveable { mutableStateOf("") }
     var actionTime by rememberSaveable { mutableStateOf("") }
-    var submitted by rememberSaveable { mutableStateOf(false) } // Para mostrar errores de validación al intentar guardar
+    var submitted by rememberSaveable { mutableStateOf(false) }
 
-    // Inicializa los estados con los valores cargados de las preferencias
     LaunchedEffect(initialPlayerName, initialNumSlots, initialTotalTime, initialActionTime) {
-        if (playerName.isEmpty() && initialPlayerName.isNotEmpty()) { // Solo carga el nombre si no ha sido modificado por el usuario
+        if (playerName.isEmpty() && initialPlayerName.isNotEmpty()) {
             playerName = initialPlayerName
         }
         numSlots = initialNumSlots
@@ -61,7 +58,6 @@ fun PreferencesScreen(
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val scrollState = rememberScrollState()
 
-    // Definiciones de espaciado y ancho para adaptabilidad
     val contentWidthFraction = if (isLandscape) 0.7f else 0.9f
     val horizontalPadding = 24.dp
     val verticalPadding = 32.dp
@@ -70,7 +66,6 @@ fun PreferencesScreen(
     val mediumSpacer = 20.dp
     val largeSpacer = 30.dp
 
-    // Lógica de validación del formulario
     val isFormValid = playerName.isNotBlank() && totalTime.isNotBlank() && actionTime.isNotBlank() &&
             (totalTime.toIntOrNull() != null && totalTime.toIntOrNull()!! > 0) &&
             (actionTime.toIntOrNull() != null && actionTime.toIntOrNull()!! > 0)

@@ -28,7 +28,6 @@ fun HomeScreen(
 ) {
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-
     val scrollState = rememberScrollState()
 
     Box(

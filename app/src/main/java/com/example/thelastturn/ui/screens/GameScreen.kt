@@ -2,10 +2,8 @@ package com.example.thelastturn.ui.screens
 
 import android.app.Application
 import android.content.res.Configuration
-
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -34,10 +32,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.thelastturn.data.AppDatabase
 import com.example.thelastturn.data.GameRepository
@@ -47,11 +43,8 @@ import com.example.thelastturn.model.PlayerTurn
 import com.example.thelastturn.viewmodel.GameViewModel
 import com.example.thelastturn.viewmodel.GameViewModelFactory
 import com.example.thelastturn.ui.components.isTabletDevice
-
-
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-
 
 @Composable
 fun isLandscape(): Boolean {
@@ -62,12 +55,9 @@ fun isLandscape(): Boolean {
 fun GameScreen(onGameEnd: (String) -> Unit) {
     val context = LocalContext.current
     val application = context.applicationContext as Application
-
     val database = remember { AppDatabase.getDatabase(context) }
     val repository = remember { GameRepository(database.partidaDao()) }
-
     val factory = remember { GameViewModelFactory(application, repository) }
-
     val viewModel: GameViewModel = viewModel(factory = factory)
 
     LaunchedEffect(viewModel.navigationEvent) {
@@ -106,12 +96,11 @@ private fun TabletGameLayout(viewModel: GameViewModel) {
             .padding(8.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Sección principal del juego (izquierdado en horizontal)
         Column(
             modifier = Modifier
                 .weight(2f)
                 .fillMaxHeight()
-                .verticalScroll(rememberScrollState()), // Usar scroll en Column para evitar LazyColumn si no es estrictamente necesario
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             TimerDisplay(viewModel)
@@ -119,13 +108,11 @@ private fun TabletGameLayout(viewModel: GameViewModel) {
             BoardSection(viewModel.enemySlots, false, viewModel)
             PlayerInfo(viewModel)
             BoardSection(viewModel.playerSlots, true, viewModel)
-            // Asegúrate de que playerHand tenga elementos antes de intentar acceder a .take(4)
             PlayerHand(viewModel.playerHand.take(4), viewModel.selectedCard) { card ->
                 viewModel.selectCard(card)
             }
         }
 
-        // Sección del log del juego (derecho en horizontal)
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -134,19 +121,17 @@ private fun TabletGameLayout(viewModel: GameViewModel) {
                 .border(1.dp, Color.LightGray)
                 .padding(8.dp)
         ) {
-            GameLogDisplay(viewModel) // Simplificado, ya que GameLogDisplay probablemente maneja su propio scroll si es necesario
+            GameLogDisplay(viewModel)
         }
     }
 }
 
-
 @Composable
 private fun SmartphonePortraitGameLayout(viewModel: GameViewModel) {
-    // SE ELIMINA EL SCROLL AQUI
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(8.dp), // Eliminado .verticalScroll(rememberScrollState())
+            .padding(8.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -172,11 +157,10 @@ private fun SmartphoneLandscapeGameLayout(viewModel: GameViewModel) {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // SE ELIMINA EL SCROLL AQUI
         Column(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxHeight(), // Eliminado .verticalScroll(rememberScrollState())
+                .fillMaxHeight(),
             verticalArrangement = Arrangement.SpaceAround,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -190,11 +174,10 @@ private fun SmartphoneLandscapeGameLayout(viewModel: GameViewModel) {
             )
         }
 
-        // SE ELIMINA EL SCROLL AQUI
         Column(
             modifier = Modifier
                 .weight(2f)
-                .fillMaxHeight(), // Eliminado .verticalScroll(rememberScrollState())
+                .fillMaxHeight(),
             verticalArrangement = Arrangement.SpaceAround,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {

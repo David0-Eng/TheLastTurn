@@ -24,64 +24,51 @@ class GameViewModel(
 
     private val prefs = PreferencesManager(application)
 
-    // Estado del alias del jugador, cargado de preferencias
     private val _playerAlias = MutableStateFlow("Jugador")
     val playerAlias: StateFlow<String> = _playerAlias.asStateFlow()
 
-    // Configuraciones de juego y tiempo
     var numberOfSlots by mutableStateOf(0); private set
     var remainingTotalTime by mutableStateOf(0)
     var remainingActionTime by mutableStateOf(0)
     var totalTimeSeconds by mutableStateOf(0)
     var actionTimeSeconds by mutableStateOf(0)
 
-    // Control de temporizadores
     private var isTimerRunning by mutableStateOf(false)
     private var totalTimerJob: Job? = null
     private var actionTimerJob: Job? = null
 
-    // Estado general del juego
     private val _gameState = mutableStateOf(GameState.ONGOING)
     val gameState get() = _gameState.value
 
-    // Métricas de la partida
     var cardsEliminated by mutableStateOf(0); private set
     var totalDamageDealt by mutableStateOf(0); private set
     var totalDamageReceived by mutableStateOf(0); private set
 
-    // Log de la partida
     private val _gameLog = MutableStateFlow("")
     val gameLog: StateFlow<String> get() = _gameLog.asStateFlow()
 
-    // Jugadores - Utilizar mutableStateOf para que los cambios en el objeto Player disparen recomposición
     private val _player = mutableStateOf(Player("Jugador", 3, 3, mutableListOf()))
     val player: Player get() = _player.value
     private val _enemy = mutableStateOf(Player("Enemigo", 3, 3, mutableListOf()))
     val enemy: Player get() = _enemy.value
 
-    // Turno actual
     private val _currentTurn = mutableStateOf(PlayerTurn.PLAYER)
     val currentTurn get() = _currentTurn.value
 
-    // Slots del tablero (MutableStateListOf para observables en Compose)
     val playerSlots = mutableStateListOf<BoardSlot>()
     val enemySlots = mutableStateListOf<BoardSlot>()
 
-    // Manos de los jugadores (MutableStateListOf para observables en Compose)
     private val _playerHand = mutableStateListOf<Card>()
     val playerHand: List<Card> get() = _playerHand
     private val _enemyHand = mutableStateListOf<Card>()
     val enemyHand: List<Card> get() = _enemyHand
 
-    // Carta seleccionada por el jugador
     private val _selectedCard = mutableStateOf<Card?>(null)
     val selectedCard get() = _selectedCard.value
 
-    // Evento de navegación para finalizar la partida
     private val _navigationEvent = mutableStateOf<String?>(null)
     val navigationEvent get() = _navigationEvent.value
 
-    // Nuevo StateFlow para indicar si las preferencias iniciales han sido cargadas
     private val _preferencesLoaded = MutableStateFlow(false)
     val preferencesLoaded: StateFlow<Boolean> = _preferencesLoaded.asStateFlow()
 
@@ -89,9 +76,7 @@ class GameViewModel(
         Log.d("GameViewModel", "GameViewModel inicializado.")
         resetMetrics()
 
-        // Lanza la carga de preferencias y la inicialización del juego después
         viewModelScope.launch {
-            // Collect all preference settings using .first() to get the current value once
             val loadedPlayerName = prefs.playerName.first()
             val loadedNumSlots = prefs.numSlots.first()
             val loadedTotalTime = prefs.totalTime.first()
@@ -101,7 +86,6 @@ class GameViewModel(
             _player.value = _player.value.copy(name = loadedPlayerName)
             Log.d("GameViewModel", "Alias del jugador cargado de preferencias: $loadedPlayerName")
 
-            // Ahora, inicia el juego con las preferencias cargadas
             startNewGameInternal(
                 numSlots = loadedNumSlots,
                 playerName = loadedPlayerName,
@@ -109,12 +93,11 @@ class GameViewModel(
                 actionTime = loadedActionTime
             )
 
-            _preferencesLoaded.value = true // Indica que las preferencias iniciales han sido cargadas
+            _preferencesLoaded.value = true
             Log.d("GameViewModel", "Preferencias iniciales cargadas y juego iniciado.")
         }
     }
 
-    /** Restablece las métricas de la partida para un nuevo juego. */
     private fun resetMetrics() {
         cardsEliminated = 0
         totalDamageDealt = 0
@@ -123,24 +106,18 @@ class GameViewModel(
         Log.d("GameViewModel", "Métricas de juego reiniciadas.")
     }
 
-    /** Añade una entrada al log de la partida con un timestamp. */
     fun addLogEntry(entry: String) {
         val timestamp = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
         _gameLog.value += "$timestamp - $entry\n"
         Log.d("GameViewModel", "Log: $entry")
     }
 
-    /**
-     * Inicia una nueva partida con la configuración proporcionada.
-     * Esta función es llamada desde la UI (ej. desde MainActivity).
-     */
     fun startNewGame(
         numSlots: Int,
         playerName: String,
         totalTime: Int,
         actionTime: Int
     ) {
-        // Guarda las preferencias aquí, ya que esta es la llamada desde la UI
         viewModelScope.launch {
             prefs.savePlayerName(playerName)
             prefs.saveGameSettings(numSlots, totalTime, actionTime)
@@ -149,10 +126,6 @@ class GameViewModel(
         startNewGameInternal(numSlots, playerName, totalTime, actionTime)
     }
 
-    /**
-     * Lógica interna para iniciar una nueva partida.
-     * Llamada desde init (con prefs cargadas) o desde startNewGame (con prefs guardadas).
-     */
     private fun startNewGameInternal(
         numSlots: Int,
         playerName: String,
@@ -172,13 +145,10 @@ class GameViewModel(
         _currentTurn.value = PlayerTurn.PLAYER
         _navigationEvent.value = null
 
-        // Actualiza el alias del jugador en el objeto Player
         _player.value = player.copy(name = playerName, maxHits = 3, currentHits = 3, deck = Card.sampleDeck().toMutableList())
         _enemy.value = enemy.copy(name = "Enemigo", maxHits = 3, currentHits = 3, deck = Card.sampleDeck().shuffled().toMutableList())
         Log.d("GameViewModel", "Jugadores inicializados. Mazos: Jugador ${player.deck.size}, Enemigo ${enemy.deck.size}")
 
-
-        // Prepara los slots del tablero
         playerSlots.clear()
         enemySlots.clear()
         repeat(numSlots) { i ->
@@ -187,7 +157,6 @@ class GameViewModel(
         }
         Log.d("GameViewModel", "Slots del tablero inicializados: ${playerSlots.size} para jugador, ${enemySlots.size} para enemigo.")
 
-        // Limpia manos y carta seleccionada
         _playerHand.clear()
         _enemyHand.clear()
         _selectedCard.value = null
@@ -201,13 +170,11 @@ class GameViewModel(
         addLogEntry("Nueva partida iniciada con $numSlots slots. Tiempo total: $totalTime s, Tiempo por acción: $actionTime s.")
     }
 
-    /** Inicia los temporizadores de la partida (total y por acción). */
     private fun startTimers() {
-        stopTimers() // Asegura que no haya temporizadores duplicados
+        stopTimers()
         isTimerRunning = true
         Log.d("GameViewModel", "Temporizadores iniciados.")
 
-        // Temporizador total de la partida
         totalTimerJob = viewModelScope.launch {
             while (isTimerRunning && remainingTotalTime > 0 && _gameState.value == GameState.ONGOING) {
                 delay(1000L)
@@ -218,7 +185,6 @@ class GameViewModel(
             }
         }
 
-        // Temporizador por acción (gestiona el turno del enemigo si el jugador se agota)
         actionTimerJob = viewModelScope.launch {
             while (isTimerRunning && _gameState.value == GameState.ONGOING) {
                 resetActionTimer()
@@ -245,7 +211,6 @@ class GameViewModel(
         }
     }
 
-    /** Evalúa el resultado del juego si el tiempo total se agota. */
     private fun evaluateEndGameByTime() {
         if (_gameState.value != GameState.ONGOING) return
 
@@ -265,13 +230,11 @@ class GameViewModel(
         Log.d("GameViewModel", "Juego finalizado por tiempo: ${_gameState.value}")
     }
 
-    /** Reinicia el temporizador de tiempo por acción. */
     private fun resetActionTimer() {
         remainingActionTime = actionTimeSeconds
         Log.d("GameViewModel", "Temporizador de acción reiniciado a $remainingActionTime segundos.")
     }
 
-    /** Detiene todos los temporizadores activos. */
     private fun stopTimers() {
         totalTimerJob?.cancel()
         actionTimerJob?.cancel()
@@ -279,7 +242,6 @@ class GameViewModel(
         Log.d("GameViewModel", "Temporizadores detenidos.")
     }
 
-    /** Roba las cartas iniciales para ambos jugadores. */
     private fun drawInitialCards() {
         Log.d("GameViewModel", "Robando cartas iniciales...")
         repeat(3) {
@@ -290,13 +252,11 @@ class GameViewModel(
         checkGameState()
     }
 
-    /** Establece la carta seleccionada por el jugador. */
     fun selectCard(card: Card) {
         _selectedCard.value = card
         addLogEntry("Carta seleccionada: ${card.name}")
     }
 
-    /** Coloca la carta seleccionada del jugador en un slot del tablero. */
     fun placeCard(slotId: Int) {
         val card = _selectedCard.value ?: run {
             addLogEntry("Error: No hay carta seleccionada para colocar.")
@@ -331,7 +291,6 @@ class GameViewModel(
         }
     }
 
-    /** Resuelve la fase de combate comparando cartas en los slots. */
     private fun resolveCombat() {
         addLogEntry("Iniciando fase de combate.")
         val currentplayerSlots = playerSlots.toList()
@@ -401,7 +360,6 @@ class GameViewModel(
         }
     }
 
-    /** Comprueba el estado actual del juego para determinar si ha terminado. */
     private fun checkGameState() {
         if (_gameState.value != GameState.ONGOING) return
 
@@ -460,7 +418,6 @@ class GameViewModel(
         }
     }
 
-    /** Establece el estado final del juego y desencadena la navegación. */
     private fun setGameState(state: GameState) {
         if (_gameState.value == state) return
 
@@ -477,7 +434,6 @@ class GameViewModel(
         addLogEntry("Juego finalizado con estado: $state. Resultado para navegación: ${_navigationEvent.value}")
     }
 
-    /** Roba una carta del mazo especificado. */
     private fun drawCard(deck: MutableList<Card>): Card? {
         val drawnCard = deck.removeFirstOrNull()
         if (drawnCard != null) {
@@ -489,7 +445,6 @@ class GameViewModel(
         return drawnCard
     }
 
-    /** Lógica para que el enemigo coloque una carta durante su turno. */
     private fun placeEnemyCardForTurn() {
         val emptySlot = enemySlots.firstOrNull { it.isEmpty }
         if (emptySlot != null && _enemyHand.isNotEmpty()) {
@@ -505,7 +460,6 @@ class GameViewModel(
         }
     }
 
-    /** Lógica para que el enemigo coloque su primera carta al inicio del juego. */
     private fun placeInitialEnemyCard() {
         Log.d("GameViewModel", "Intentando colocar carta inicial del enemigo...")
         enemySlots.firstOrNull { it.isEmpty }?.let { slot ->
@@ -527,7 +481,6 @@ class GameViewModel(
         }
     }
 
-    /** Guarda el resultado de la partida en la base de datos. */
     private fun saveGameResult() {
         if (_gameState.value == GameState.ONGOING) return
 
@@ -557,14 +510,12 @@ class GameViewModel(
         }
     }
 
-    /** Obtiene un resumen de las métricas del juego para mostrar en la pantalla de resultados. */
     fun getGameLogSummary(): String {
         return "Cartas eliminadas: $cardsEliminated\n" +
                 "Daño infligido: $totalDamageDealt\n" +
                 "Daño recibido: $totalDamageReceived"
     }
 
-    /** Restablece el evento de navegación después de ser consumido. */
     fun resetNavigation() {
         _navigationEvent.value = null
         Log.d("GameViewModel", "Evento de navegación reseteado.")

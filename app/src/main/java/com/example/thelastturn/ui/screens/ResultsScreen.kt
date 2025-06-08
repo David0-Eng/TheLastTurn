@@ -38,10 +38,9 @@ fun ResultsScreen(
     onBackToHome: () -> Unit,
     gameRepository: GameRepository
 ) {
-    // Normaliza el resultado para las comparaciones y display
     val validResult = when (result.uppercase(Locale.getDefault())) {
         "VICTORY", "DEFEAT", "DRAW", "TIEMPO AGOTADO" -> result.uppercase(Locale.getDefault())
-        else -> "DRAW" // Valor por defecto si no es reconocido
+        else -> "DRAW"
     }
 
     val context = LocalContext.current
@@ -50,7 +49,6 @@ fun ResultsScreen(
 
     val displayBoardSize = "${boardSize}x$boardSize"
 
-    // Construye el texto completo del log para mostrarlo
     val fullGameLogText = buildString {
         append("Jugador: $playerName\n")
         append("Tablero: $displayBoardSize\n")
@@ -60,15 +58,12 @@ fun ResultsScreen(
         append(gameLog)
     }
 
-    // Obtiene la fecha y hora actuales para el registro
     val currentDateTime = remember {
         SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date())
     }
 
-    // Maneja el botón de retroceso del sistema para volver a la pantalla de inicio
     BackHandler { onBackToHome() }
 
-    // Función para enviar el email con los resultados
     val sendEmail = {
         val subject = "Resultados TheLastTurn: ${
             when (validResult) {
@@ -116,7 +111,7 @@ fun ResultsScreen(
 
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = Color(0xFF8B4513) // Color de fondo si el gradiente falla o no cubre
+        color = Color(0xFF8B4513)
     ) {
         Box(
             modifier = Modifier
@@ -202,7 +197,7 @@ fun ResultsScreen(
                             AppActionButton("Salir", onExit)
                         }
                     }
-                } else { // Orientación Portrait
+                } else {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -288,7 +283,7 @@ private fun ResultHeader(result: String) {
 private fun ReadOnlyField(labelText: String, value: String) {
     OutlinedTextField(
         value = value,
-        onValueChange = {}, // ReadOnlyField no permite cambios
+        onValueChange = {},
         label = { Text(labelText, color = Color.White) },
         readOnly = true,
         modifier = Modifier.fillMaxWidth(),
@@ -300,7 +295,7 @@ private fun ReadOnlyField(labelText: String, value: String) {
             unfocusedLabelColor = Color.Gray,
             disabledBorderColor = Color.Gray,
             disabledLabelColor = Color.Gray,
-            disabledTextColor = Color.White // Asegura que el texto sea blanco incluso cuando está deshabilitado
+            disabledTextColor = Color.White
         )
     )
 }
